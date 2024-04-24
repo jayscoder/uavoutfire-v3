@@ -315,6 +315,7 @@ class AStarMoveToAreaTask(BaseDroneNode):
         yield from self.move(grid=self.memory_grid, platform=self.platform, target=self.move_to_area_task)
 
 
+
 @FIRE_BT_BUILDER.register_node
 class HasMoveToAreaTask(BaseDroneNode):
 
@@ -602,6 +603,12 @@ class GoToNearestFire(BaseDroneNode):
     @property
     def in_task_area(self):
         return self.converter.bool(self.attrs.get('in_task_area', False))
+
+    def to_data(self):
+        return {
+            **super().to_data(),
+            'move_to_area_task': self.move_to_area_task,
+        }
 
     def updater(self) -> typing.Iterator[Status]:
         # 查找最近的火点

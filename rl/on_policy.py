@@ -275,10 +275,10 @@ class OnPolicyRLHandler(RLHandler):
                 rewards[idx] += self.model.gamma * terminal_value
 
         self.model.rollout_buffer.add(
-                self._last_obs,  # type: ignore[arg-type]
+                self.model._last_obs,  # type: ignore[arg-type]
                 actions,
                 rewards,
-                self._last_episode_starts,  # type: ignore[arg-type]
+                self.model._last_episode_starts,  # type: ignore[arg-type]
                 values,
                 log_probs,
         )

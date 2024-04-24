@@ -24,17 +24,17 @@
                 <Extinguish/>
             </Sequence>
 
-            <GoToNearestUnseen in_task_area="true"/>
+            <AStarMoveToAreaTask />
 
-            <Sequence>
-                <GoToNearestNearFlammableFire in_task_area="false"/>
-                <Extinguish/>
-            </Sequence>
-            
-            <Sequence>
-                <GoToNearestFire in_task_area="false"/>
-                <Extinguish/>
-            </Sequence>
+<!--            <Sequence>-->
+<!--                <GoToNearestNearFlammableFire in_task_area="false"/>-->
+<!--                <Extinguish/>-->
+<!--            </Sequence>-->
+<!--            -->
+<!--            <Sequence>-->
+<!--                <GoToNearestFire in_task_area="false"/>-->
+<!--                <Extinguish/>-->
+<!--            </Sequence>-->
 
             <!--            <Sequence>-->
             <!--                <GoToNearestNearFlammableFire in_task_area="false"/>-->
@@ -52,7 +52,7 @@
             <!--                </Sequence>-->
             <!--            </Sequence>-->
 
-            <GoHome/>
+<!--            <GoHome/>-->
         </Selector>
 
     </ReactiveSelector>

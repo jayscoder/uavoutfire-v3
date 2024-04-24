@@ -42,8 +42,7 @@ class Platform:
         self.consume_actions = []  # 已经执行的动作
         self.is_alive = True
         self.context = { }  # 平台环境空间，platform会重建，但是行为树不会，所以行为树的context和这里的不是同一个
-        self.memory_grid = np.full(shape=self.env.grid.shape, fill_value=Objects.Unseen)
-        self.memory_grid_set_time = np.full(shape=self.env.grid.shape, fill_value=0)  # 每个记忆矩阵更新的时间
+
         self.unreachable_grid = np.zeros_like(self.env.grid)  # 1为不可到达点
         self.move_to_area_task: Optional[tuple[tuple[int, int], tuple[int, int]]] = None
         self.role: int = 0  # 平台角色
@@ -140,6 +139,9 @@ class Platform:
 class Home(Platform):
     def __init__(self, x, y, id: int, env: FireEnvironment):
         super().__init__(x, y, id, env)
+        self.memory_grid = np.full(shape=self.env.grid.shape, fill_value=Objects.Unseen)  # 记忆矩阵
+        self.memory_grid_set_time = np.full(shape=self.env.grid.shape, fill_value=0)  # 每个记忆矩阵更新的时间
+        self.outdated_memory_grid = np.full(shape=self.env.grid.shape, fill_value=Objects.Unseen)  # 过期的记忆矩阵
 
     def recharge(self, drone):
         # print(f"Recharging drone {drone.id} at home located at ({self.x}, {self.y})")
@@ -175,7 +177,7 @@ class Drone(Platform):
             self.max_battery = 3000  # 最大电量
             self.battery = self.max_battery  # 当前电量
             self.cost_battery = 3  # 每次移动消耗电量3
-            self.max_fire_extinguisher = 10  # 最大灭火剂容量
+            self.max_fire_extinguisher = 20  # 最大灭火剂容量
             self.fire_extinguisher = self.max_fire_extinguisher  # 当前灭火剂量
             self.cost_extinguisher = 1  # 每次灭火操作消耗1单位灭火剂
         else:
@@ -184,7 +186,7 @@ class Drone(Platform):
             # 最大电量: 1000（足够支持长时间操作）
             # 消耗电量: 每次移动或操作消耗1单位电量（考虑到主要任务是移动探索，消耗较少）
             # 无需携带灭火剂（探索无人机不参与灭火）
-            self.view_range = 4  # 视野范围
+            self.view_range = 3  # 视野范围
             self.max_battery = 1500  # 最大电量
             self.battery = self.max_battery  # 当前电量
             self.cost_battery = 1  # 每次移动消耗电量1
@@ -196,6 +198,14 @@ class Drone(Platform):
         self.extinguished_fire_count = 0  # 扑灭火的数量
         self.direction = Directions.Right  # 当前正在移动的方向
         self.move_count_grid = np.zeros_like(env.grid)  # 每个位置移动次数统计
+
+    @property
+    def memory_grid(self):
+        return self.env.home.memory_grid
+
+    @property
+    def outdated_memory_grid(self):
+        return self.env.home.outdated_memory_grid
 
     def move(self, dx, dy):
         if not self.is_alive:
@@ -260,9 +270,13 @@ class Drone(Platform):
         battery = self.battery - dis * self.cost_battery  # 移动到目标点后预计消耗电量
         return not self.is_battery_bingo(battery=battery, pos=target)
 
-    def find_nearest_reachable_obj_pos(self, obj: int | list[int], in_task_area: bool = True,
-                                       near_obj: int | None = None) -> tuple[
-        int, int]:
+    def find_nearest_reachable_obj_pos(
+            self,
+            obj: int, in_task_area: bool = True,
+            near_obj: int | None = None,
+            threshold: int = 1
+    ) -> tuple[
+             int, int] | None:
         # 查找最近的某个点
         nearest_pos = None
         min_distance = float('inf')
@@ -270,21 +284,59 @@ class Drone(Platform):
         right_bottom = (self.env.size, self.env.size)
         if in_task_area and self.move_to_area_task is not None:
             left_top, right_bottom = self.move_to_area_task
-        if isinstance(obj, int):
-            obj = [obj]
+        # 确定搜索范围内的所有满足条件的点
+        mask = (self.memory_grid == obj) | (self.outdated_memory_grid == obj)
+        mask = mask[left_top[0]:right_bottom[0], left_top[1]:right_bottom[1]]
+        indices = np.argwhere(mask) + np.array([left_top[0], left_top[1]])
+
+        if near_obj is not None:
+            # 检查每个点附近是否有 `near_obj`
+            valid_indices = []
+            for idx in indices:
+                x, y = idx
+                sub_grid = grid_area_extract(grid=self.memory_grid, center=(x, y), offset=1)
+                if np.any(sub_grid == near_obj):
+                    valid_indices.append(idx)
+            indices = np.array(valid_indices)
+
+        if indices.size == 0:
+            return None
+
+        # 计算所有有效点到当前位置的曼哈顿距离
+        distances = np.abs(indices[:, 0] - self.pos[0]) + np.abs(indices[:, 1] - self.pos[1])
+
+        # 筛选出可到达的点
+        reachable = np.array([self.predict_can_move_to_target(target=(idx[0], idx[1])) for idx in indices])
+        reachable_distances = distances[reachable]
+
+        if reachable_distances.size == 0:
+            return None
+
+        # 找到最近的点
+        min_index = np.argmin(reachable_distances)
+        nearest_pos = tuple(indices[reachable][min_index])
+
+        # if reachable_distances[min_index] <= threshold:
+        #     return nearest_pos
+
+        return nearest_pos
 
         for x in range(left_top[0], right_bottom[0]):
             for y in range(left_top[1], right_bottom[1]):
-                if self.memory_grid[x][y] in obj and self.unreachable_grid[x][y] != 1:
+                if self.memory_grid[x][y] == obj or self.outdated_memory_grid[x][y] == obj:
                     if near_obj is not None:
                         if not np.any(
                                 grid_area_extract(grid=self.memory_grid, center=(x, y), offset=1) == near_obj):
                             continue
 
                     distance = manhattan_distance((x, y), self.pos)
-                    if distance < min_distance and self.predict_can_move_to_target(target=(x, y)):
+
+                    can_move_to = self.predict_can_move_to_target(target=(x, y))
+                    if distance < min_distance and can_move_to:
                         min_distance = distance
                         nearest_pos = (x, y)
+                        if min_distance <= threshold:
+                            return nearest_pos
         return nearest_pos
 
     @property
@@ -366,10 +418,10 @@ class Drone(Platform):
 class FireEnvironment:
     def __init__(self,
                  size=50,
-                 init_empty_fires=7,  # 空地上的火扩散的速度会比较慢
-                 init_flammable_fires=3,  # 草地上的火扩散速度会比较快
+                 init_empty_fires=5,  # 空地上的火扩散的速度会比较慢
+                 init_flammable_fires=5,  # 草地上的火扩散速度会比较快
                  num_explore_drones=2,
-                 num_extinguish_drones=4,
+                 num_extinguish_drones=2,
                  num_obstacles=30,
                  num_flammables=10,
                  max_step: int = 3000
@@ -379,7 +431,7 @@ class FireEnvironment:
         self.init_flammable_fires = init_flammable_fires
 
         self.empty_fire_spread_chance = 0
-        self.flammable_fire_spread_chance = 0.012
+        self.flammable_fire_spread_chance = 0.005
         self.num_obstacles = num_obstacles
         self.num_flammables = num_flammables
         self.num_explore_drones = num_explore_drones
@@ -609,6 +661,9 @@ class FireEnvironment:
             platform.update()
 
         # Check if all drones are disabled
+        # if random.random() < 1 / 500:
+        #     spread_init(self.grid, obj=Objects.Fire, count=self.init_flammable_fires, area_size=1,
+        #                 at_obj=Objects.Flammable)
 
         if self.alive_drones_count == 0 or self.alive_extinguish_drones_count == 0 or self.alive_fires == 0:
             # 灭火无人机数量为0也代表结束了
@@ -619,6 +674,10 @@ class FireEnvironment:
         if self.alive_fires == 0:
             self.terminated = True
             # print(f"All fires have been extinguished. Simulation ends. rewards={rewards} done={self.done}")
+
+        if self.alive_fires >= 500:
+            self.terminated = True
+            # 剩余火太多了，直接结束
 
         if self.terminated or self.truncated:
             time_ratio = self.max_duration / self.time
@@ -691,11 +750,11 @@ class FireEnvironment:
                 img = PYGAME_IMAGES['UAV_EXPLORE']
                 rotate = 0
                 if drone.direction == Directions.Right:
-                    rotate = 90
+                    rotate = -90
                 elif drone.direction == Directions.Down:
                     rotate = 180
                 elif drone.direction == Directions.Left:
-                    rotate = 270
+                    rotate = 90
                 img = pygame.transform.rotate(img, rotate)
             else:
                 img = PYGAME_IMAGES['UAV_EXTINGUISH']

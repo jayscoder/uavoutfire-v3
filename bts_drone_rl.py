@@ -14,7 +14,7 @@ class DroneExtinguishFire(RLNode):
     """无人机灭火"""
 
     def rl_action_space(self) -> gym.spaces.Space:
-        return gym.spaces.Box(low=0, high=self.env.size, shape=(len(self.env.drones), 4), dtype=np.float32)
+        return gym.spaces.Box(low=0, high=1, shape=(len(self.env.drones), 4), dtype=np.float32)
 
     def update(self) -> Status:
         areas = list(self.take_action())
@@ -24,6 +24,10 @@ class DroneExtinguishFire(RLNode):
             areas.sort(key=lambda area: area[0] + area[1])
         for i in range(len(areas)):
             x, y, w, h = areas[i]
+            x *= self.env.size
+            y *= self.env.size
+            w *= self.env.size
+            h *= self.env.size
             # print('HomeRLAssignFireExplorationAreas', x, y, size)
             rects = []
             rect = build_rect_from_center((x, y), (w, h), max_size=self.env.size)
@@ -31,4 +35,3 @@ class DroneExtinguishFire(RLNode):
             area_message = MoveToAreaMessage(rect=rect)
             self.platform.send_message(message=area_message, to_platform=self.env.platforms[i])
         return Status.SUCCESS
-

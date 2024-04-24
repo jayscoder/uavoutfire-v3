@@ -15,12 +15,13 @@ class BaseHomeRLNode(RLNode, BaseHomeNode):
         BaseHomeNode.__init__(self, **kwargs)
         super().__init__(**kwargs)
 
+
 @FIRE_BT_BUILDER.register_node
 class HomeRLAssignFireExplorationAreas(BaseHomeRLNode):
     """基地RL分配灭火区域给各无人机。"""
 
     def rl_action_space(self) -> gym.spaces.Space:
-        return gym.spaces.Box(low=0, high=self.env.size, shape=(len(self.env.extinguish_drones), 4), dtype=np.float32)
+        return gym.spaces.Box(low=0, high=1, shape=(len(self.env.drones), 2), dtype=np.float32)
 
     def update(self) -> Status:
         areas = list(self.take_action())
@@ -29,13 +30,19 @@ class HomeRLAssignFireExplorationAreas(BaseHomeRLNode):
             # 如果不观测无人机位置的话，就给输出的区域做个排序
             areas.sort(key=lambda area: area[0] + area[1])
         for i in range(len(areas)):
-            x, y, w, h = areas[i]
+            x, y = areas[i]
+            w, h = 6, 6
+            x = int(x * (self.env.size - 6)) + 3
+            y = int(y * (self.env.size - 6)) + 3
+            # x = int(x * (self.env.size - 10)) + 5
+            # y = int(y * (self.env.size - 10)) + 5
+
             # print('HomeRLAssignFireExplorationAreas', x, y, size)
             rects = []
             rect = build_rect_from_center((x, y), (w, h), max_size=self.env.size)
             rects.append(rect)
             area_message = MoveToAreaMessage(rect=rect)
-            self.platform.send_message(message=area_message, to_platform=self.env.extinguish_drones[i])
+            self.platform.send_message(message=area_message, to_platform=self.env.drones[i])
         return Status.SUCCESS
 
 

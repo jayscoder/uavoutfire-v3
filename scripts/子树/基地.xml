@@ -1,5 +1,5 @@
 <Root>
-    <HomeUpdateMemoryGrid/>
+    <HomeUpdateMemoryGrid outdated_time="{{outdated_time}}"/>
     <HomeUpdateUnreachableGrid/>
 
     <Sequence>

@@ -12,16 +12,16 @@
 
     <Reward name="时间惩罚" domain="default" reward="-0.01"/>
 
-    <HomeAssignUnseenExplorationTasks/>
+<!--    <HomeAssignUnseenExplorationTasks/>-->
 
-    <Throttle duration="3" time="time">
+    <Throttle duration="0" time="time">
         <HomeRLAssignFireExplorationAreas
                 algo="SAC"
                 name="SAC-HomeRLAssignFireExplorationAreas"
                 domain="default"
                 path="{{models_dir}}/{{name}}"
                 save_path="{{models_dir}}/{{name}}"
-                save_interval="20"
+                save_interval="50"
                 tensorboard_log="{{logs_dir}}/{{name}}"
                 log_interval="1"
                 verbose="0"

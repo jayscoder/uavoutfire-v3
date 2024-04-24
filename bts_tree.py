@@ -14,7 +14,9 @@ class BTSimulator:
                  home_tree_file: str,
                  explore_drone_tree_file: str,
                  extinguish_drone_tree_file: str,
-                 render: bool = False):
+                 render: bool = False,
+                 context: dict = None
+                 ):
         self.title = title
         self.env = env
         self.render = render
@@ -34,7 +36,7 @@ class BTSimulator:
                 root = FIRE_BT_BUILDER.build_from_file(extinguish_drone_tree_file)
             else:
                 raise Exception('Unrecognized platform {}'.format(platform))
-            self.trees.append(PlatformTree(root=root, env=env, sim=self, platform_id=platform.id))
+            self.trees.append(PlatformTree(root=root, env=env, sim=self, platform_id=platform.id, context=context))
 
         for tree in self.trees:
             tree.context['logs_dir'] = self.logs_dir
@@ -151,7 +153,7 @@ class BTSimulator:
 
 
 class PlatformTree(RLTree):
-    def __init__(self, root: Node, env: FireEnvironment, sim: BTSimulator, platform_id: int):
+    def __init__(self, root: Node, env: FireEnvironment, sim: BTSimulator, platform_id: int, context: dict = None):
         platform = env.platforms[platform_id]
         name = ''
         if isinstance(platform, Home):
@@ -164,6 +166,8 @@ class PlatformTree(RLTree):
         else:
             raise ValueError(f'Platform类型错误')
         super().__init__(root, name=name)
+        if context is not None:
+            self.context.update(context)
         self.context.update({
             'platform_id': platform_id,
             'env'        : env,

@@ -1,8 +1,8 @@
 def main():
     alive_flammables = 500
 
-    alive_near_flammable_fires = 10
-    alive_fires = 0
+    alive_near_flammable_fires = 0
+    alive_fires = 10
 
     time_ratio = 1
 

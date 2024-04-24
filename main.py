@@ -9,19 +9,23 @@ import bts_drone
 import bts_home_rl
 
 
-def main(N: int, folder: str, render: bool,
-         track: int,
-         train: bool,
-         home_file='home.xml',
-         explore_drone_file='../子树/探索UAV.xml', extinguish_drone_file='../子树/灭火UAV.xml'):
+def run_sim(N: int, folder: str, render: bool = False,
+            track: int = 0,
+            train: bool = True,
+            home_file='home.xml',
+            explore_drone_file='../子树/探索UAV.xml', extinguish_drone_file='../子树/灭火UAV.xml',
+            outdated_time: int = 300,
+            title: str = '',
+            ):
     env = FireEnvironment(50)
     sim = BTSimulator(
-            title=folder,
+            title=title or folder,
             env=env,
             home_tree_file=os.path.join(folder, home_file),
             explore_drone_tree_file=os.path.join(folder, explore_drone_file),
             extinguish_drone_tree_file=os.path.join(folder, extinguish_drone_file),
             render=render,
+            context={ 'outdated_time': outdated_time }
     )
     start_time = time.time()
     sim.simulate(N, track=track, train=train)
@@ -30,4 +34,4 @@ def main(N: int, folder: str, render: bool,
 
 
 if __name__ == '__main__':
-    main(N=10000, folder='RL分配-知道无人机', render=True, track=0, train=True)
+    run_sim(N=10000, folder='RL分配-知道无人机', render=True, track=0, train=True)

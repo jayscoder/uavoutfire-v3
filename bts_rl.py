@@ -105,8 +105,9 @@ class RLNode(BaseBTNode, RLBaseNode, ABC):
 
         if 'SAC' in self.algo:
             attrs.update({
-                'train_freq'     : (1, "step"),
+                'train_freq'     : (100, "step"),
                 'learning_starts': 30,
+                'use_sde': True
             })
 
         return attrs
@@ -196,13 +197,10 @@ class RLNode(BaseBTNode, RLBaseNode, ABC):
     #     return self.env.action_space
 
     def rl_observation_space(self) -> gym.spaces.Space:
-        image_channels = 1
-        if self.obs_uav:
-            image_channels += 2
         spac = {
-            'image': gym.spaces.Box(low=0, high=5,
-                                    shape=(image_channels, self.platform.memory_grid.shape[0],
-                                           self.platform.memory_grid.shape[1])),
+            'image': gym.spaces.Box(low=0, high=10,
+                                    shape=(3, self.platform.env.home.memory_grid.shape[0],
+                                           self.platform.env.home.memory_grid.shape[1])),
             # 'children_status_count': gym.spaces.Box(low=0, high=100, shape=(2 * len(self.children),),
             #                                         dtype=np.int32),
             # 'status_count'         : gym.spaces.Box(low=0, high=100, shape=(2,), dtype=np.int32),
@@ -218,21 +216,22 @@ class RLNode(BaseBTNode, RLBaseNode, ABC):
         return self.converter.bool(self.attrs.get('obs_uav', False))
 
     def rl_gen_obs(self):
-        image = self.platform.memory_grid
-        if self.obs_uav:
-            uav_id = np.zeros_like(self.platform.memory_grid)
-            uav_need_go_home = np.zeros_like(self.platform.memory_grid)
-            for i, drone in enumerate(self.platform.env.drones):
-                uav_id[drone.x, drone.y] = i + 1
-                uav_need_go_home[drone.x, drone.y] = int(drone.need_go_home)
-            image = np.stack([image, uav_id, uav_need_go_home], axis=0)
-            return {
-                'image': image
-            }
-        else:
-            return {
-                'image': image[None, :, :]
-            }
+        image = self.platform.env.home.memory_grid
+        # if self.obs_uav:
+        uav_id = np.zeros_like(image)
+
+        # uav_need_go_home = np.zeros_like(image)
+        for i, drone in enumerate(self.platform.env.drones):
+            uav_id[drone.x, drone.y] = i + 1
+            # uav_need_go_home[drone.x, drone.y] = int(drone.need_go_home)
+        image = np.stack([image, uav_id, (self.env.time - self.platform.env.home.memory_grid_set_time) / 600], axis=0)
+        return {
+            'image': image
+        }
+        # else:
+        #     return {
+        #         'image': image[None, :, :]
+        #     }
 
     def rl_gen_info(self) -> dict:
         return self.env.gen_info()

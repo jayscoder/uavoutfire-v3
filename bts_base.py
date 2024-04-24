@@ -4,11 +4,11 @@ from envs import *
 from constanst import *
 from rl.tree import RLTree
 
+
 class BaseBTNode(Node):
     @property
     def env(self) -> FireEnvironment:
         return self.context['env']
-
 
     @property
     def cache(self) -> dict:
@@ -28,6 +28,7 @@ class BaseBTNode(Node):
     @property
     def memory_grid(self) -> np.array:
         return self.platform.memory_grid
+
 
 
 class BaseHomeNode(BaseBTNode):

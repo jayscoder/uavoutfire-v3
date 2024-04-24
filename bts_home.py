@@ -10,6 +10,10 @@ from bts_builder import FIRE_BT_BUILDER
 class HomeUpdateMemoryGrid(BaseHomeNode):
     """基地更新记忆矩阵，并将最新的记忆矩阵下发给无人机"""
 
+    @property
+    def outdated_time(self) -> int:
+        return self.converter.int(self.attrs.get('outdated_time', 300))
+
     def update(self) -> Status:
         old_memory_grid = np.copy(self.memory_grid)
         for msg in self.platform.read_messages(DroneViewUpdateMessage):
@@ -17,12 +21,20 @@ class HomeUpdateMemoryGrid(BaseHomeNode):
             self.memory_grid[lt_pos[0]:rt_pos[0], lt_pos[1]:rt_pos[1]] = self.env.grid[lt_pos[0]:rt_pos[0],
                                                                          lt_pos[1]:rt_pos[1]]
             self.platform.memory_grid_set_time[lt_pos[0]:rt_pos[0], lt_pos[1]:rt_pos[1]] = msg.time
+            self.platform.outdated_memory_grid[lt_pos[0]:rt_pos[0], lt_pos[1]:rt_pos[1]] = self.env.grid[
+                                                                                           lt_pos[0]:rt_pos[0],
+                                                                                           lt_pos[1]:rt_pos[1]]
             self.platform.send_message_to_all_drone(message=msg)
 
+        # 超过30步的区域重新视为过期
         self.memory_grid[self.platform.unreachable_grid == 1] = Objects.Obstacle  # 不可到达区域设置成障碍物
+        self.platform.outdated_memory_grid[self.platform.unreachable_grid == 1] = Objects.Obstacle  # 不可到达区域设置成障碍物
+        self.platform.outdated_memory_grid[
+            self.env.time - self.platform.memory_grid_set_time > self.outdated_time] = Objects.Unseen
+
         # 下发记忆矩阵
         # self.platform.send_message_to_all_drone(message=MemoryGridUpdateMessage(memory_grid=self.memory_grid))
-        self.env.render_grid = self.memory_grid
+        self.env.render_grid = self.platform.outdated_memory_grid
 
         # 计算新火点数量
         new_find_fire_count = np.sum((old_memory_grid != Objects.Fire) & (self.memory_grid == Objects.Fire))
@@ -126,8 +138,7 @@ class HomeAssignUnseenExplorationTasks(BaseHomeNode):
 
     def updater(self) -> typing.Iterator[Status]:
         for i in range(self.repeat_count):
-            memory_grid = self.memory_grid
-            target_mask = memory_grid == Objects.Unseen
+            target_mask = self.platform.outdated_memory_grid == Objects.Unseen
 
             # 获取所有未探测区域的坐标
             target_indices = np.argwhere(target_mask)
@@ -174,8 +185,7 @@ class HomeAssignFireExplorationTasks(BaseHomeNode):
 
     def updater(self) -> typing.Iterator[Status]:
         for i in range(self.repeat_count):
-            memory_grid = self.memory_grid
-            target_mask = memory_grid == Objects.Fire
+            target_mask = self.platform.memory_grid == Objects.Fire
 
             # 获取所有未探测区域的坐标
             target_indices = np.argwhere(target_mask)
