@@ -299,7 +299,7 @@ class HomeRLAssignFireExplorationAreas(HomeRLNode):
     """基地RL分配探索区域给各无人机。"""
 
     def rl_action_space(self) -> gym.spaces.Space:
-        return gym.spaces.Box(low=0, high=self.env.size, shape=(len(self.env.drones), 3), dtype=np.float32)
+        return gym.spaces.Box(low=0, high=self.env.size, shape=(len(self.env.drones), 4), dtype=np.float32)
 
     def update(self) -> Status:
         areas = list(self.take_action())
@@ -308,10 +308,10 @@ class HomeRLAssignFireExplorationAreas(HomeRLNode):
             # 如果不观测无人机位置的话，就给输出的区域做个排序
             areas.sort(key=lambda area: area[0] + area[1])
         for i in range(len(areas)):
-            x, y, size = areas[i]
+            x, y, w, h = areas[i]
             # print('HomeRLAssignFireExplorationAreas', x, y, size)
             rects = []
-            rect = build_rect_from_center((x, y), (size, size), max_size=self.env.size)
+            rect = build_rect_from_center((x, y), (w, h), max_size=self.env.size)
             rects.append(rect)
             area_message = MoveToAreaMessage(rect=rect)
             self.platform.send_message(message=area_message, to_platform=self.env.platforms[i])
@@ -371,6 +371,7 @@ class HomeRLAreaReward(BaseHomeNode, Reward):
             # if area_size < max_area - area_tolerance or area_size > max_area + area_tolerance:
             #     reward -= 1  # Penalty for inappropriate area size
         return reward / 10
+
 
 @FIRE_BT_BUILDER.register_node
 class RLSwitcher(RLComposite, Switcher):
