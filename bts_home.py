@@ -19,7 +19,7 @@ class HomeUpdateMemoryGrid(BaseHomeNode):
             self.platform.memory_grid_set_time[lt_pos[0]:rt_pos[0], lt_pos[1]:rt_pos[1]] = msg.time
             self.platform.send_message_to_all_drone(message=msg)
 
-        self.memory_grid[self.platform.unreachable_grid == 1] = Objects.Empty  # 不可到达区域设置成空
+        self.memory_grid[self.platform.unreachable_grid == 1] = Objects.Obstacle  # 不可到达区域设置成障碍物
         # 下发记忆矩阵
         # self.platform.send_message_to_all_drone(message=MemoryGridUpdateMessage(memory_grid=self.memory_grid))
         self.env.render_grid = self.memory_grid
@@ -110,31 +110,37 @@ class HomeAssignUnseenExplorationAreas(BaseHomeNode):
     def updater(self) -> typing.Iterator[Status]:
         for i in range(self.repeat_count):
             memory_grid = self.memory_grid
-            unseen_mask = memory_grid == Objects.Unseen
+            target_mask = memory_grid == Objects.Unseen
 
             # 获取所有未探测区域的坐标
-            unseen_indices = np.argwhere(unseen_mask)
-            if unseen_indices.size == 0:
+            target_indices = np.argwhere(target_mask)
+            if target_indices.size == 0:
                 yield Status.FAILURE  # 如果没有未探测区域，则返回失败状态
                 return
 
             # 尝试均等分配未探测区域
             num_drones = len(self.env.drones)
-            area_per_drone = len(unseen_indices) // num_drones
-            extra = len(unseen_indices) % num_drones
+            # 每个无人机分配至少一个探测区域，如果区域数小于无人机数，一些无人机将共享同一探测区域
+            num_assigned_areas = min(num_drones, len(target_indices))
+            area_per_drone = max(1, len(target_indices) // num_drones)
+            extra = len(target_indices) % num_drones
 
             start_idx = 0
             for i, drone in enumerate(self.env.drones):
+                assign_i = i % num_assigned_areas
                 # 为每个无人机计算分配区域的大小
-                end_idx = start_idx + area_per_drone + (1 if i < extra else 0)
-                if start_idx < len(unseen_indices):
-                    drone_area_indices = unseen_indices[start_idx:end_idx]
-                    # 计算区域的边界
-                    x_min, x_max = np.min(drone_area_indices[:, 0]), np.max(drone_area_indices[:, 0])
-                    y_min, y_max = np.min(drone_area_indices[:, 1]), np.max(drone_area_indices[:, 1])
-                    # 创建并发送消息
-                    area_message = MoveToAreaMessage(rect=((x_min, y_min), (x_max + 1, y_max + 1)))
-                    self.platform.send_message(message=area_message, to_platform=drone)
+                end_idx = start_idx + area_per_drone + (1 if assign_i < extra else 0)
+                drone_area_indices = target_indices[start_idx:end_idx]
+                if len(drone_area_indices) == 0:
+                    # 清除区域任务
+                    self.platform.send_message(message=MoveToAreaMessage(rect=None), to_platform=drone)
+                    continue
+                # 计算区域的边界
+                x_min, x_max = np.min(drone_area_indices[:, 0]), np.max(drone_area_indices[:, 0])
+                y_min, y_max = np.min(drone_area_indices[:, 1]), np.max(drone_area_indices[:, 1])
+                # 创建并发送消息
+                area_message = MoveToAreaMessage(rect=((x_min, y_min), (x_max + 1, y_max + 1)))
+                self.platform.send_message(message=area_message, to_platform=drone)
                 start_idx = end_idx
 
             yield Status.RUNNING
@@ -161,25 +167,32 @@ class HomeAssignFireExplorationAreas(BaseHomeNode):
                 return
             # 尝试均等分配未探测区域
             num_drones = len(self.env.drones)
-            area_per_drone = len(target_indices) // num_drones
+            # 每个无人机分配至少一个探测区域，如果区域数小于无人机数，一些无人机将共享同一探测区域
+            num_assigned_areas = min(num_drones, len(target_indices))
+            area_per_drone = max(1, len(target_indices) // num_drones)
             extra = len(target_indices) % num_drones
 
             start_idx = 0
             for i, drone in enumerate(self.env.drones):
+                assign_i = i % num_assigned_areas
                 # 为每个无人机计算分配区域的大小
-                end_idx = start_idx + area_per_drone + (1 if i < extra else 0)
-                if start_idx < len(target_indices):
-                    drone_area_indices = target_indices[start_idx:end_idx]
-                    # 计算区域的边界
-                    x_min, x_max = np.min(drone_area_indices[:, 0]), np.max(drone_area_indices[:, 0])
-                    y_min, y_max = np.min(drone_area_indices[:, 1]), np.max(drone_area_indices[:, 1])
-                    # 创建并发送消息
-                    area_message = MoveToAreaMessage(rect=((x_min, y_min), (x_max + 1, y_max + 1)))
-                    self.platform.send_message(message=area_message, to_platform=drone)
+                end_idx = start_idx + area_per_drone + (1 if assign_i < extra else 0)
+                drone_area_indices = target_indices[start_idx:end_idx]
+                if len(drone_area_indices) == 0:
+                    # 清除区域任务
+                    self.platform.send_message(message=MoveToAreaMessage(rect=None), to_platform=drone)
+                    continue
+                # 计算区域的边界
+                x_min, x_max = np.min(drone_area_indices[:, 0]), np.max(drone_area_indices[:, 0])
+                y_min, y_max = np.min(drone_area_indices[:, 1]), np.max(drone_area_indices[:, 1])
+                # 创建并发送消息
+                area_message = MoveToAreaMessage(rect=((x_min, y_min), (x_max + 1, y_max + 1)))
+                self.platform.send_message(message=area_message, to_platform=drone)
                 start_idx = end_idx
 
             yield Status.RUNNING
         yield Status.SUCCESS
+
 
 @FIRE_BT_BUILDER.register_node
 class IsFindNewFire(BaseHomeNode):

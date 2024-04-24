@@ -1,0 +1,52 @@
+<Root>
+    <DroneSendViewUpdateToHome/>
+    <DroneUpdateMemoryGrid/>
+    <DroneReceiveUnreachableUpdate/>
+    <DroneReceiveMoveToAreaMessage/>
+
+    <Selector>
+        <Sequence>
+            <Or>
+                <IsExtinguisherOver/>
+                <IsBatteryBingo/>
+            </Or>
+            <GoHome/>
+        </Sequence>
+
+        <!--        <Sequence>-->
+        <!--            <IsObstacleInFront/>-->
+        <!--            <WallAround move_distance="1"/>-->
+        <!--        </Sequence>-->
+        <!--执行移动到区域任务-->
+        <Sequence>
+            <!--有区域任务-->
+            <HasMoveToAreaTask/>
+            <Selector>
+                <Sequence>
+                    <Inverter>
+                        <IsCompleteMoveToAreaTask/>
+                    </Inverter>
+                    <AStarMoveToAreaTaskTarget/>
+                </Sequence>
+
+                <GoToNearestUnseenInAreaTask/>
+
+                <Sequence>
+                    <HasFireAtLocation/>
+                    <Extinguish/>
+                </Sequence>
+
+                <GoToNearestFireInAreaTask/>
+            </Selector>
+        </Sequence>
+
+        <GoToNearestUnseen/>
+
+        <Sequence>
+            <HasFireAtLocation/>
+            <Extinguish/>
+        </Sequence>
+        <!--没有区域任务 -->
+        <GoToNearestFire/>
+    </Selector>
+</Root>

@@ -1,0 +1,20 @@
+<Root>
+    <HomeUpdateMemoryGrid/>
+    <HomeUpdateUnreachableGrid/>
+
+    <Sequence>
+        <HomeHasDroneNeedRecharge/>
+        <HomeRechargeDrone/>
+    </Sequence>
+
+    <Selector>
+        <Sequence>
+            <HomeHasFireArea/>
+            <HomeAssignFireExplorationAreas/>
+        </Sequence>
+        <Sequence>
+            <HomeHasUnseenArea/>
+            <HomeAssignUnseenExplorationAreas/>
+        </Sequence>
+    </Selector>
+</Root>

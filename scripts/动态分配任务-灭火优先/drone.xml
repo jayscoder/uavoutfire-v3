@@ -16,6 +16,7 @@
             <HasFireAtLocation/>
             <Extinguish/>
         </Sequence>
+
         <!--        <Sequence>-->
         <!--            <IsObstacleInFront/>-->
         <!--            <WallAround move_distance="1"/>-->

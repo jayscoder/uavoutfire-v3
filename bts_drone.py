@@ -376,9 +376,13 @@ class AStarMoveToAreaTaskTarget(BaseDroneNode):
                     yield Status.RUNNING
                     break
                 yield Status.RUNNING
+                if self.move_to_area_task is None:
+                    yield Status.FAILURE
+                    return
                 if is_in_rect(pos=self.platform.pos, rect=self.move_to_area_task):
                     yield Status.SUCCESS
                     return
+
                 if not is_in_rect(pos=goal, rect=self.move_to_area_task):
                     retry_count += 1
                     break
@@ -489,6 +493,14 @@ class DStarLiteMoveToPoint(BaseDroneNode):
 class AStarMoveToPoint(BaseDroneNode):
 
     @classmethod
+    def check_path(cls, grid: np.array, path):
+        for p in path:
+            if grid[p] == Objects.Obstacle:
+                # print('碰到墙了，重新规划路线', retry_count)
+                return False
+        return True
+
+    @classmethod
     def move_to(cls, platform: Drone, point: tuple[int, int]):
 
         retry_count = 0
@@ -502,16 +514,22 @@ class AStarMoveToPoint(BaseDroneNode):
                 platform.send_message_to_home(DroneUnreachableUpdateMessage(point=point))
                 yield Status.FAILURE
                 return
+
+            path = list(path)
+
             for i, p in enumerate(path):
                 # print('移动', p)
                 if i == 0 and p != platform.pos:
                     raise Exception('错误')
                 if i == 0:
                     continue
-                if platform.memory_grid[p] == Objects.Obstacle:
-                    # print('碰到墙了，重新规划路线', retry_count)
+                if not cls.check_path(grid=platform.memory_grid, path=path):
                     retry_count += 1
                     break
+                # if platform.memory_grid[p] == Objects.Obstacle:
+                #     # print('碰到墙了，重新规划路线', retry_count)
+                #     retry_count += 1
+                #     break
                 next_move_vec = p[0] - platform.pos[0], p[1] - platform.pos[1]
                 yield from DoAction.do_action(
                         platform=platform,
@@ -568,6 +586,17 @@ class GoToNearestUnseenInAreaTask(BaseDroneNode):
 
     def updater(self) -> typing.Iterator[Status]:
         target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Unseen, in_task_area=True)
+        if target is None:
+            yield Status.FAILURE
+            return
+        yield from AStarMoveToPoint.move_to(platform=self.platform, point=target)
+
+
+@FIRE_BT_BUILDER.register_node
+class GoToNearestUnseen(BaseDroneNode):
+
+    def updater(self) -> typing.Iterator[Status]:
+        target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Unseen, in_task_area=False)
         if target is None:
             yield Status.FAILURE
             return

@@ -25,4 +25,4 @@ def main(N: int, folder: str, render: bool, track: int, train: bool):
 
 
 if __name__ == '__main__':
-    main(N=10000, folder='RL动态分配任务-知道无人机', render=True, track=0, train=True)
+    main(N=10000, folder='基地探索优先-无人机任务-灭火-探索', render=True, track=0, train=True)
