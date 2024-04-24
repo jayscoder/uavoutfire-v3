@@ -100,14 +100,15 @@ class RLNode(BaseBTNode, RLBaseNode, ABC):
 
         attrs = {
             'policy_kwargs': policy_kwargs,
-            'policy'       : 'MultiInputPolicy'
+            'policy'       : 'MultiInputPolicy',
+            'device'       : 'cpu'
         }
 
         if 'SAC' in self.algo:
             attrs.update({
                 'train_freq'     : (100, "step"),
                 'learning_starts': 30,
-                'use_sde': True
+                'use_sde'        : True
             })
 
         return attrs
@@ -134,7 +135,6 @@ class RLNode(BaseBTNode, RLBaseNode, ABC):
 
     def setup_model(self, algo: str, policy: str = 'MlpPolicy', **kwargs):
         tensorboard_logger = TensorboardLogger(folder=self.tensorboard_log, verbose=0)
-
         if algo == 'PPO':
             self.rl_setup_model(
                     policy=policy,
