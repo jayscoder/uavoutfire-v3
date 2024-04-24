@@ -1,20 +1,20 @@
 <Root>
-    <DroneSendViewUpdateToHome/>
-    <DroneUpdateMemoryGrid/>
-    <DroneReceiveUnreachableUpdate/>
-    <DroneReceiveMoveToAreaMessage/>
+    <DroneSendViewUpdateToHome name="上传新环境观测"/>
+    <DroneUpdateMemoryGrid name="接收其他无人机环境观测"/>
+    <DroneReceiveUnreachableUpdate name="接收其他无人机不可达区域观测"/>
+    <DroneReceiveMoveToAreaMessage name="接收任务消息"/>
 
     <ReactiveSelector>
         <Sequence>
-            <IsBatteryBingo/>
-            <GoHome/>
+            <IsBatteryBingo name="电池是否告急"/>
+            <GoHome name="回基地"/>
         </Sequence>
 
         <Selector>
-            <GoToNearestUnseen in_task_area="true"/>
-<!--            <GoToNearestUnseen in_task_area="false"/>-->
+            <GoToNearestUnseen in_task_area="true" name="去任务区域执行探索任务"/>
+            <GoToNearestUnseen in_task_area="false" name="去任务区域外执行探索任务"/>
             <!--回基地-->
-            <GoHome/>
+            <GoHome name="回基地"/>
         </Selector>
     </ReactiveSelector>
 </Root>

@@ -1,14 +1,21 @@
 <Root>
-    <HomeUpdateMemoryGrid/>
-    <HomeUpdateUnreachableGrid/>
+    <HomeUpdateMemoryGrid name="更新环境地图"/>
+    <HomeUpdateUnreachableGrid name="更新不可达区域"/>
     <Sequence>
-        <HomeHasDroneNeedRecharge/>
-        <HomeRechargeDrone/>
+        <HomeHasDroneNeedRecharge name="是否有无人机需要充电/补充灭火剂"/>
+        <HomeRechargeDrone name="充电/补充灭火剂"/>
     </Sequence>
 
-    <Reward domain="default"
+    <Reward
+            name="新增灭火量奖励"
+            domain="default"
             reward="{{new_extinguish_fire_count * 0.01 + new_extinguish_fire_nearby_flammable_count*0.5}}"/>
-    <HomeRLAreaReward domain="default"/>
+    <Reward
+            name="新增濒临林场灭火量奖励"
+            domain="default"
+            reward="{{new_extinguish_fire_count * 0.01 + new_extinguish_fire_nearby_flammable_count*0.5}}"/>
+
+    <HomeRLAreaReward domain="default" name="任务区域惩罚"/>
 
     <Reward name="时间惩罚" domain="default" reward="-0.01"/>
 
@@ -17,7 +24,7 @@
     <Throttle duration="0" time="time">
         <HomeRLAssignFireExplorationAreas
                 algo="PPO"
-                name="PPO-HomeRLAssignFireExplorationAreas"
+                name="动态分配任务"
                 domain="default"
                 path="{{models_dir}}/{{name}}"
                 save_path="{{models_dir}}/{{name}}"

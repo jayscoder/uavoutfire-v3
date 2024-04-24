@@ -14,27 +14,37 @@
         </Sequence>
 
         <Selector>
-            <Sequence>
+            <Sequence name="去任务区域内执行灭林地边缘火任务">
                 <GoToNearestNearFlammableFire in_task_area="true"/>
                 <Extinguish/>
             </Sequence>
 
-            <Sequence>
+            <Sequence name="去任务区域内执行灭林地内火任务">
                 <GoToNearestFire in_task_area="true"/>
                 <Extinguish/>
             </Sequence>
 
-            <AStarMoveToAreaTask />
-
-<!--            <Sequence>-->
+<!--            <Sequence name="去任务区域外执行灭林地边火任务">-->
 <!--                <GoToNearestNearFlammableFire in_task_area="false"/>-->
 <!--                <Extinguish/>-->
 <!--            </Sequence>-->
-<!--            -->
-<!--            <Sequence>-->
+
+<!--            <Sequence name="去任务区域外执行灭林地内火任务">-->
 <!--                <GoToNearestFire in_task_area="false"/>-->
 <!--                <Extinguish/>-->
 <!--            </Sequence>-->
+
+            <AStarMoveToAreaTask/>
+
+            <!--            <Sequence>-->
+            <!--                <GoToNearestNearFlammableFire in_task_area="false"/>-->
+            <!--                <Extinguish/>-->
+            <!--            </Sequence>-->
+            <!--            -->
+            <!--            <Sequence>-->
+            <!--                <GoToNearestFire in_task_area="false"/>-->
+            <!--                <Extinguish/>-->
+            <!--            </Sequence>-->
 
             <!--            <Sequence>-->
             <!--                <GoToNearestNearFlammableFire in_task_area="false"/>-->
@@ -52,7 +62,7 @@
             <!--                </Sequence>-->
             <!--            </Sequence>-->
 
-<!--            <GoHome/>-->
+            <!--            <GoHome/>-->
         </Selector>
 
     </ReactiveSelector>

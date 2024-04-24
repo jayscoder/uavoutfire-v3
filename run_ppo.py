@@ -26,11 +26,11 @@ def run_sim(N: int, render: bool = False,
     model = PPO('CnnPolicy', env=sim, verbose=1, tensorboard_log='./logs/Stable-PPO', use_sde=False, policy_kwargs={
         'normalize_images'         : False,
         'features_extractor_class' : CNNFeaturesExtractor,
-        'features_extractor_kwargs': dict(features_dim=256),
+        'features_extractor_kwargs': dict(features_dim=128),
     }, device='cpu')
     model.learn(total_timesteps=N, progress_bar=True)
     model.save("models/Stable-PPO")
 
 
 if __name__ == '__main__':
-    run_sim(N=2500000, render=False, title='Stable-PPO')
+    run_sim(N=2500000, render=True, title='Stable-PPO')

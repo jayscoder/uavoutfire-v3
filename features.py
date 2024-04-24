@@ -16,8 +16,8 @@ class CNNFeaturesExtractor(BaseFeaturesExtractor):
         n_input_channels = observation_space.shape[0]
         self.cnn = nn.Sequential(
                 nn.Conv2d(n_input_channels, 8, (2, 2), padding=1),
-                nn.ReLU(),
-                nn.Conv2d(8, 16, (2, 2), padding=1),
+                # nn.ReLU(),
+                # nn.Conv2d(8, 16, (2, 2), padding=1),
                 nn.ReLU(),
                 nn.Flatten(),
         )

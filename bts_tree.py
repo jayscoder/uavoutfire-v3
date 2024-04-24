@@ -129,7 +129,15 @@ class BTSimulator(gym.Env):
         if self.render and self.should_render():
             self.env.pygame_render()
             time.sleep(0.02)
-        return self.env.step(action)
+
+        obs, accum_reward, terminated, truncated, info = self.env.step(action)
+        for i in range(20):
+            if terminated or truncated:
+                break
+            # 动作重复
+            obs, reward, terminated, truncated, info = self.env.step(action)
+            accum_reward += reward
+        return obs, accum_reward, terminated, truncated, info
 
     def simulate(self, episodes: int, track: int = 0, train: bool = False):
         env = self.env

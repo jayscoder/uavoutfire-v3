@@ -423,11 +423,11 @@ class FireEnvironment(gym.Env):
     def __init__(self,
                  size=50,
                  init_empty_fires=5,  # 空地上的火扩散的速度会比较慢
-                 init_flammable_fires=5,  # 草地上的火扩散速度会比较快
+                 init_flammable_fires=2,  # 草地上的火扩散速度会比较快
                  num_explore_drones=2,
                  num_extinguish_drones=2,
                  num_obstacles=30,
-                 num_flammables=10,
+                 num_flammables=4,
                  max_step: int = 3000,
                  ):
         self.size = size
@@ -780,9 +780,9 @@ class FireEnvironment(gym.Env):
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         for i in range(len(action)):
             x, y = action[i]
-            w, h = 6, 6
-            x = int(x * (self.size - 6)) + 3
-            y = int(y * (self.size - 6)) + 3
+            w, h = 10, 10
+            x = int(x * (self.size - w)) + w / 2
+            y = int(y * (self.size - h)) + h / 2
             # x = int(x * (self.env.size - 10)) + 5
             # y = int(y * (self.env.size - 10)) + 5
 
@@ -796,7 +796,7 @@ class FireEnvironment(gym.Env):
         return self.update()
 
     def gen_obs(self):
-        image = downsample_grid(self.home.memory_grid, factor=self.down_sample_factor)
+        image = downsample_grid(self.grid, factor=self.down_sample_factor)
         # print('gen_obs', image.shape, self.observation_space)
         # if self.obs_uav:
         uav_id = np.zeros_like(image)
@@ -820,6 +820,7 @@ class FireEnvironment(gym.Env):
         render_grid = self.render_grid
         if render_grid is None:
             render_grid = self.grid
+        render_grid = self.grid
         screen = self.screen
         screen.fill((0, 0, 0))  # Clear the screen with black
         for x in range(self.size):
