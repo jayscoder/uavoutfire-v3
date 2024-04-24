@@ -161,3 +161,4 @@ cython_debug/
 logs/*
 output/*
 models/*
+scripts/*/run_id.txt

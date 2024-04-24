@@ -1,7 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="PYTHON_MODULE" version="4">
   <component name="NewModuleRootManager">
-    <content url="file://$MODULE_DIR$" />
+    <content url="file://$MODULE_DIR$">
+      <excludeFolder url="file://$MODULE_DIR$/logs/PPO分配" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/PPO分配-不知道无人机" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/RL分配-知道无人机" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/RL动态分配任务" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/SAC分配" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/平均分配" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/平均分配-outdated-time-100" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/平均分配-outdated-time-1000" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/平均分配-outdated-time-10000" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/平均分配-outdated-time-200" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/平均分配-outdated-time-300" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/平均分配-outdated-time-400" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/平均分配-outdated-time-50" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/平均分配-outdated-time-500" />
+      <excludeFolder url="file://$MODULE_DIR$/logs/平均分配-outdated-time-600" />
+      <excludeFolder url="file://$MODULE_DIR$/models/RL动态分配任务" />
+      <excludeFolder url="file://$MODULE_DIR$/models/RL动态分配任务-不知无人机" />
+    </content>
     <orderEntry type="jdk" jdkName="$USER_HOME$/opt/anaconda3" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
