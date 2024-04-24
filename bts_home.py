@@ -138,6 +138,7 @@ class HomeAssignUnseenExplorationAreas(BaseHomeNode):
                 start_idx = end_idx
 
             yield Status.RUNNING
+        yield Status.SUCCESS
 
 
 @FIRE_BT_BUILDER.register_node
@@ -178,7 +179,7 @@ class HomeAssignFireExplorationAreas(BaseHomeNode):
                 start_idx = end_idx
 
             yield Status.RUNNING
-
+        yield Status.SUCCESS
 
 @FIRE_BT_BUILDER.register_node
 class IsFindNewFire(BaseHomeNode):
