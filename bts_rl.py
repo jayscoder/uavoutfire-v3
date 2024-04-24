@@ -95,22 +95,22 @@ class RLNode(BaseBTNode, RLBaseNode, ABC):
         # 这里来实现模型的参数
         policy_kwargs = dict(
                 features_extractor_class=RLBTFeaturesExtractor,
-                features_extractor_kwargs=dict(features_dim=512),
+                features_extractor_kwargs=dict(features_dim=128),
         )
 
         attrs = {
             'policy_kwargs': policy_kwargs,
             'policy'       : 'MultiInputPolicy',
-            'device'       : 'cpu'
+            'device'       : 'cpu',
+            'use_sde'      : True
         }
 
         if 'SAC' in self.algo:
             attrs.update({
                 'train_freq'     : (100, "step"),
                 'learning_starts': 30,
-                'use_sde'        : True
             })
-
+        
         return attrs
 
     def setup(self, **kwargs: typing.Any) -> None:

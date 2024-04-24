@@ -29,8 +29,10 @@ class HomeUpdateMemoryGrid(BaseHomeNode):
         # 超过30步的区域重新视为过期
         self.memory_grid[self.platform.unreachable_grid == 1] = Objects.Obstacle  # 不可到达区域设置成障碍物
         self.platform.outdated_memory_grid[self.platform.unreachable_grid == 1] = Objects.Obstacle  # 不可到达区域设置成障碍物
-        self.platform.outdated_memory_grid[
-            self.env.time - self.platform.memory_grid_set_time > self.outdated_time] = Objects.Unseen
+        outdated_condition = (
+                                     (self.env.time - self.platform.memory_grid_set_time) > self.outdated_time) & (
+                                         self.memory_grid == Objects.Flammable)
+        self.platform.outdated_memory_grid[outdated_condition] = Objects.Unseen
 
         # 下发记忆矩阵
         # self.platform.send_message_to_all_drone(message=MemoryGridUpdateMessage(memory_grid=self.memory_grid))
