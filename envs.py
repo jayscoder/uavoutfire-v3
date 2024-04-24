@@ -6,10 +6,13 @@ import time
 import matplotlib
 import matplotlib.colors as mcolors
 import random
+
+from gymnasium.core import ActType, ObsType
+
 from agent import QLearningAgent
 import gymnasium as gym
 import typing
-from typing import Any
+from typing import Any, SupportsFloat
 from constanst import *
 import math
 from matplotlib.animation import FuncAnimation
@@ -454,6 +457,12 @@ class FireEnvironment:
         self.last_render_time = 0
         self.last_update_time = 0
         self.paused = False  # 是否暂停
+        self.observation_space = gym.spaces.Box(low=0, high=10,
+                                                shape=(3, self.grid.shape[0], self.grid.shape[1]))
+
+        self.action_space = gym.spaces.Box(low=0, high=1,
+                                           shape=(self.num_explore_drones + self.num_extinguish_drones, 2))
+
         self.reset()
 
     def reset(self):
@@ -713,6 +722,9 @@ class FireEnvironment:
     #                  'b--')
     #
     #     plt.show()
+
+
+
 
     def pygame_init(self):
         pygame.init()

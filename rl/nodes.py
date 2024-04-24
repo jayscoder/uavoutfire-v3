@@ -333,7 +333,8 @@ class RLBaseNode(ABC):
                     rewards=reward,
                     new_obs=obs,
                     dones=done,
-                    values=None, log_probs=None)
+                    values=None,
+                    log_probs=None)
             if should_train:
                 self.rl_handler.train()
         self.rl_obs_index = obs_index

@@ -110,7 +110,7 @@ class RLNode(BaseBTNode, RLBaseNode, ABC):
                 'train_freq'     : (100, "step"),
                 'learning_starts': 30,
             })
-        
+
         return attrs
 
     def setup(self, **kwargs: typing.Any) -> None:
