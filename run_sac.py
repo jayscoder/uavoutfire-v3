@@ -22,14 +22,14 @@ def run_sim(N: int, render: bool = False,
             render=render,
             context={ 'outdated_time': 300 },
     )
-    model = SAC('CnnPolicy', env=sim, verbose=1, tensorboard_log='./logs/Stable-SAC分配', use_sde=True, policy_kwargs={
+    model = SAC('CnnPolicy', env=sim, verbose=1, tensorboard_log='./logs/Stable-SAC', use_sde=False, policy_kwargs={
         'normalize_images'         : False,
         'features_extractor_class' : CNNFeaturesExtractor,
         'features_extractor_kwargs': dict(features_dim=256),
     }, device='cpu')
     model.learn(total_timesteps=N, progress_bar=True)
-    model.save("models/SAC分配")
+    model.save("models/Stable-SAC")
 
 
 if __name__ == '__main__':
-    run_sim(N=25000, render=False, title='Stable-SAC')
+    run_sim(N=2500000, render=False, title='Stable-SAC')

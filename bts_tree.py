@@ -85,11 +85,12 @@ class BTSimulator(gym.Env):
         env = self.env
         avg_n = 50
 
-        for tree in self.trees:
-            # 设置环境默认奖励
-            if 'reward' in tree.context:
-                accum_reward = sum(tree.context['reward'].values())
-                self.logger.record_and_mean_n_episodes(f'{tree.name}-奖励', accum_reward, n=avg_n)
+        # for tree in self.trees:
+        #     # 设置环境默认奖励
+        #     if 'reward' in tree.context:
+        #         accum_reward = sum(tree.context['reward'].values())
+        #         self.logger.record_and_mean_n_episodes(f'{tree.name}-奖励', accum_reward, n=avg_n)
+        self.logger.record_and_mean_n_episodes('奖励', env.accum_reward, n=avg_n)
         self.logger.record_and_mean_n_episodes('步数', env.time, n=avg_n)
         self.logger.record_and_mean_n_episodes('剩余/火量', env.alive_fires, n=avg_n)
         self.logger.record_and_mean_n_episodes('剩余/火量比例', env.alive_fires_ratio, n=avg_n)

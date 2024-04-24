@@ -744,7 +744,7 @@ class FireEnvironment(gym.Env):
 
         # Simulation continues
         self.accum_reward += reward
-        print('reward', reward)
+        # print('reward', reward)
         return self.gen_obs(), reward, self.terminated, self.truncated, self.gen_info()
 
     # def matplot_render(self):
@@ -797,7 +797,7 @@ class FireEnvironment(gym.Env):
 
     def gen_obs(self):
         image = downsample_grid(self.home.memory_grid, factor=self.down_sample_factor)
-        print('gen_obs', image.shape, self.observation_space)
+        # print('gen_obs', image.shape, self.observation_space)
         # if self.obs_uav:
         uav_id = np.zeros_like(image)
         # uav_need_go_home = np.zeros_like(image)
@@ -812,7 +812,7 @@ class FireEnvironment(gym.Env):
             # uav_need_go_home[drone.x, drone.y] = int(drone.need_go_home)
         # outdated = (self.time - self.home.memory_grid_set_time) / 600
         image = np.stack([image, uav_id], axis=0)
-        print(image.shape)
+        # print(image.shape)
         return image
 
     def pygame_render(self):
