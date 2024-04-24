@@ -12,4 +12,4 @@ from main import run_sim
 if __name__ == '__main__':
     # run_sim(N=200, folder='平均分配', outdated_time=300, title=f'平均分配-outdated-time-300')
     for t in [50, 100, 200, 300, 400, 500, 600, 1000, 10000]:
-        run_sim(N=5, folder='平均分配', outdated_time=t, title=f'平均分配-outdated-time-{t}')
+        run_sim(N=100, folder='平均分配', outdated_time=t, title=f'平均分配-outdated-time-{t}')
