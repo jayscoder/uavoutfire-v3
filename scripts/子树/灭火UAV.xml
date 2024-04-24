@@ -1,0 +1,59 @@
+<Root>
+    <DroneSendViewUpdateToHome/>
+    <DroneUpdateMemoryGrid/>
+    <DroneReceiveUnreachableUpdate/>
+    <DroneReceiveMoveToAreaMessage/>
+
+    <ReactiveSelector>
+        <Sequence>
+            <Or>
+                <IsExtinguisherOver/>
+                <IsBatteryBingo/>
+            </Or>
+            <GoHome/>
+        </Sequence>
+
+        <Selector>
+            <Sequence>
+                <GoToNearestNearFlammableFire in_task_area="true"/>
+                <Extinguish/>
+            </Sequence>
+
+            <Sequence>
+                <GoToNearestFire in_task_area="true"/>
+                <Extinguish/>
+            </Sequence>
+
+            <GoToNearestUnseen in_task_area="true"/>
+
+            <Sequence>
+                <GoToNearestNearFlammableFire in_task_area="false"/>
+                <Extinguish/>
+            </Sequence>
+            
+            <Sequence>
+                <GoToNearestFire in_task_area="false"/>
+                <Extinguish/>
+            </Sequence>
+
+            <!--            <Sequence>-->
+            <!--                <GoToNearestNearFlammableFire in_task_area="false"/>-->
+            <!--                <Sequence>-->
+            <!--                    <HasFireAtLocation/>-->
+            <!--                    <Extinguish/>-->
+            <!--                </Sequence>-->
+            <!--            </Sequence>-->
+
+            <!--            <Sequence>-->
+            <!--                <GoToNearestFire in_task_area="false"/>-->
+            <!--                <Sequence>-->
+            <!--                    <HasFireAtLocation/>-->
+            <!--                    <Extinguish/>-->
+            <!--                </Sequence>-->
+            <!--            </Sequence>-->
+
+            <GoHome/>
+        </Selector>
+
+    </ReactiveSelector>
+</Root>

@@ -108,6 +108,13 @@ class Extinguish(DoAction):
     def action(self) -> int:
         return DroneActions.EXTINGUISH
 
+    def updater(self):
+        if self.platform.fire_extinguisher > 0 and self.platform.pos_obs == Objects.Fire:
+            self.platform.put_action(DroneActions.EXTINGUISH)
+            yield Status.SUCCESS
+        else:
+            yield Status.FAILURE
+
 
 @FIRE_BT_BUILDER.register_node
 class DroneSendViewUpdateToHome(BaseDroneNode):
@@ -337,7 +344,8 @@ class IsCompleteMoveToAreaTask(BaseDroneNode):
 class AStarMoveToAreaTaskTarget(BaseDroneNode):
 
     def pick_target_point(self, picked: set):
-        p1 = rect_nearest(rect=self.move_to_area_task, pos=self.platform.pos)
+        # p1 = rect_nearest(rect=self.move_to_area_task, pos=self.platform.pos)
+        p1 = rect_center(rect=self.move_to_area_task)
         if p1 not in picked and self.memory_grid[p1] != Objects.Obstacle:
             picked.add(p1)
             return p1
@@ -361,7 +369,8 @@ class AStarMoveToAreaTaskTarget(BaseDroneNode):
             return
         picked = set()
         retry_count = 0
-        while not is_in_rect(self.platform.pos, self.move_to_area_task) and retry_count < 4:
+        while self.move_to_area_task is not None and not is_in_rect(self.platform.pos,
+                                                                    self.move_to_area_task) and retry_count < 4:
             if self.move_to_area_task is None:
                 break
             goal = self.pick_target_point(picked)
@@ -392,6 +401,14 @@ class AStarMoveToAreaTaskTarget(BaseDroneNode):
             yield Status.FAILURE
             return
         yield Status.SUCCESS
+
+
+@FIRE_BT_BUILDER.register_node
+class DroneClearMoveToAreaTask(BaseDroneNode):
+
+    def update(self) -> Status:
+        self.move_to_area_task = None
+        return Status.SUCCESS
 
 
 @FIRE_BT_BUILDER.register_node
@@ -448,6 +465,7 @@ class DStarLiteMoveToAreaTaskTarget(BaseDroneNode):
         if not is_in_rect(self.platform.pos, self.move_to_area_task):
             yield Status.FAILURE
             return
+        self.move_to_area_task = None
         yield Status.SUCCESS
 
 
@@ -531,9 +549,9 @@ class AStarMoveToPoint(BaseDroneNode):
                 #     retry_count += 1
                 #     break
                 next_move_vec = p[0] - platform.pos[0], p[1] - platform.pos[1]
-                yield from DoAction.do_action(
-                        platform=platform,
-                        action=DroneActions.move_action_from_direction_vec(next_move_vec))
+                action = DroneActions.move_action_from_direction_vec(next_move_vec)
+                platform.put_action(action)
+                yield Status.RUNNING
         if not (platform.pos == point):
             yield Status.FAILURE
             return
@@ -560,10 +578,19 @@ class WallAroundMoveToTaskTarget(BaseDroneNode):
 
 
 @FIRE_BT_BUILDER.register_node
-class GoToNearestFireInAreaTask(BaseDroneNode):
+class GoToNearestNearFlammableFire(BaseDroneNode):
+    """去最近的靠近易燃物上的火"""
+
+    @property
+    def in_task_area(self):
+        return self.converter.bool(self.attrs.get('in_task_area', False))
+
     def updater(self) -> typing.Iterator[Status]:
-        # 查找最近的火点
-        target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Fire, in_task_area=True)
+        # 查找最近的靠近易燃物的火点
+        target = self.platform.find_nearest_reachable_obj_pos(
+                obj=Objects.Fire,
+                in_task_area=self.in_task_area,
+                near_obj=Objects.Flammable)
         if target is None:
             yield Status.FAILURE
             return
@@ -572,20 +599,13 @@ class GoToNearestFireInAreaTask(BaseDroneNode):
 
 @FIRE_BT_BUILDER.register_node
 class GoToNearestFire(BaseDroneNode):
+    @property
+    def in_task_area(self):
+        return self.converter.bool(self.attrs.get('in_task_area', False))
+
     def updater(self) -> typing.Iterator[Status]:
         # 查找最近的火点
-        target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Fire, in_task_area=False)
-        if target is None:
-            yield Status.FAILURE
-            return
-        yield from AStarMoveToPoint.move_to(platform=self.platform, point=target)
-
-
-@FIRE_BT_BUILDER.register_node
-class GoToNearestUnseenInAreaTask(BaseDroneNode):
-
-    def updater(self) -> typing.Iterator[Status]:
-        target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Unseen, in_task_area=True)
+        target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Fire, in_task_area=self.in_task_area)
         if target is None:
             yield Status.FAILURE
             return
@@ -594,9 +614,42 @@ class GoToNearestUnseenInAreaTask(BaseDroneNode):
 
 @FIRE_BT_BUILDER.register_node
 class GoToNearestUnseen(BaseDroneNode):
+    @property
+    def in_task_area(self):
+        return self.converter.bool(self.attrs.get('in_task_area', False))
 
     def updater(self) -> typing.Iterator[Status]:
-        target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Unseen, in_task_area=False)
+        target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Unseen, in_task_area=self.in_task_area)
+        if target is None:
+            yield Status.FAILURE
+            return
+        yield from AStarMoveToPoint.move_to(platform=self.platform, point=target)
+
+
+@FIRE_BT_BUILDER.register_node
+class GoToNearestFlammable(BaseDroneNode):
+    @property
+    def in_task_area(self):
+        return self.converter.bool(self.attrs.get('in_task_area', False))
+
+    def updater(self) -> typing.Iterator[Status]:
+        target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Flammable,
+                                                              in_task_area=self.in_task_area)
+        if target is None:
+            yield Status.FAILURE
+            return
+        yield from AStarMoveToPoint.move_to(platform=self.platform, point=target)
+
+
+@FIRE_BT_BUILDER.register_node
+class GoToNearestEmpty(BaseDroneNode):
+    @property
+    def in_task_area(self):
+        return self.converter.bool(self.attrs.get('in_task_area', False))
+
+    def updater(self) -> typing.Iterator[Status]:
+        target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Empty,
+                                                              in_task_area=self.in_task_area)
         if target is None:
             yield Status.FAILURE
             return
@@ -617,7 +670,7 @@ class IsExtinguisherOver(BaseDroneNode):
 class IsBatteryBingo(BaseDroneNode):
 
     def update(self) -> Status:
-        if self.platform.battery < manhattan_distance(self.env.home.pos, self.platform.pos) * 1.5:
+        if self.platform.is_battery_bingo():
             return Status.SUCCESS
         return Status.FAILURE
 
@@ -626,6 +679,40 @@ class IsBatteryBingo(BaseDroneNode):
 class GoHome(BaseDroneNode):
     def updater(self) -> typing.Iterator[Status]:
         yield from AStarMoveToPoint.move_to(platform=self.platform, point=self.env.home.pos)
+
+
+@FIRE_BT_BUILDER.register_node
+class CanMoveToNearestUnseen(BaseDroneNode):
+    """
+    预测自己能不能飞到最近的未知区域
+    """
+
+    @property
+    def in_task_area(self):
+        return self.converter.bool(self.attrs.get('in_task_area', False))
+
+    def update(self) -> Status:
+        target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Unseen, in_task_area=self.in_task_area)
+        if target is None:
+            return Status.FAILURE
+        return Status.SUCCESS
+
+
+@FIRE_BT_BUILDER.register_node
+class CanMoveToNearestFire(BaseDroneNode):
+    """
+    预测自己能不能飞到最近的火焰区域
+    """
+
+    @property
+    def in_task_area(self):
+        return self.converter.bool(self.attrs.get('in_task_area', False))
+
+    def update(self) -> Status:
+        target = self.platform.find_nearest_reachable_obj_pos(obj=Objects.Fire, in_task_area=self.in_task_area)
+        if target is None:
+            return Status.FAILURE
+        return Status.SUCCESS
 
 # @FIRE_BT_BUILDER.register_node
 # class DroneMoveToTaskTarget(BaseDroneNode):

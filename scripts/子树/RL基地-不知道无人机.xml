@@ -5,25 +5,16 @@
         <HomeHasDroneNeedRecharge/>
         <HomeRechargeDrone/>
     </Sequence>
-    <Sequence>
-        <IsFindNewFire/>
-        <Reward domain="default" reward="{{new_find_fire_count / 5}}"/>
-    </Sequence>
-    <Sequence>
-        <IsExtinguishNewFire/>
-        <Reward domain="default" reward="{{new_extinguish_fire_count / 2}}"/>
-    </Sequence>
-    <Sequence>
-        <IsExploreNewUnseen/>
-        <Reward domain="default" reward="{{new_explore_unseen_count / 25}}"/>
-        <!--总共25点奖励-->
-    </Sequence>
 
+    <Reward domain="default"
+            reward="{{new_extinguish_fire_count * 0.01 + new_extinguish_fire_nearby_flammable_count*0.5}}"/>
     <HomeRLAreaReward domain="default"/>
 
-    <Reward name="时间惩罚" domain="default" reward="-1 / 30"/>
+    <Reward name="时间惩罚" domain="default" reward="-0.01"/>
 
-    <Throttle duration="10" time="time">
+    <HomeAssignUnseenExplorationTasks/>
+
+    <Throttle duration="3" time="time">
         <HomeRLAssignFireExplorationAreas
                 algo="SAC"
                 name="SAC-HomeRLAssignFireExplorationAreas"
@@ -36,7 +27,7 @@
                 verbose="0"
                 exp_fill="false"
                 train="{{train}}"
-                obs_uav="{{true}}"
+                obs_uav="{{false}}"
         />
     </Throttle>
 </Root>

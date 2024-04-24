@@ -1,0 +1,33 @@
+<Root>
+    <HomeUpdateMemoryGrid/>
+    <HomeUpdateUnreachableGrid/>
+    <Sequence>
+        <HomeHasDroneNeedRecharge/>
+        <HomeRechargeDrone/>
+    </Sequence>
+
+    <Reward domain="default"
+            reward="{{new_extinguish_fire_count * 0.01 + new_extinguish_fire_nearby_flammable_count*0.5}}"/>
+    <HomeRLAreaReward domain="default"/>
+
+    <Reward name="时间惩罚" domain="default" reward="-0.01"/>
+
+    <HomeAssignUnseenExplorationTasks/>
+
+    <Throttle duration="3" time="time">
+        <HomeRLAssignFireExplorationAreas
+                algo="SAC"
+                name="SAC-HomeRLAssignFireExplorationAreas"
+                domain="default"
+                path="{{models_dir}}/{{name}}"
+                save_path="{{models_dir}}/{{name}}"
+                save_interval="20"
+                tensorboard_log="{{logs_dir}}/{{name}}"
+                log_interval="1"
+                verbose="0"
+                exp_fill="false"
+                train="{{train}}"
+                obs_uav="{{true}}"
+        />
+    </Throttle>
+</Root>

@@ -1,0 +1,20 @@
+<Root>
+    <DroneSendViewUpdateToHome/>
+    <DroneUpdateMemoryGrid/>
+    <DroneReceiveUnreachableUpdate/>
+    <DroneReceiveMoveToAreaMessage/>
+
+    <ReactiveSelector>
+        <Sequence>
+            <IsBatteryBingo/>
+            <GoHome/>
+        </Sequence>
+
+        <Selector>
+            <GoToNearestUnseen in_task_area="true"/>
+<!--            <GoToNearestUnseen in_task_area="false"/>-->
+            <!--回基地-->
+            <GoHome/>
+        </Selector>
+    </ReactiveSelector>
+</Root>

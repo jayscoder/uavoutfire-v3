@@ -4,7 +4,7 @@ from envs import *
 from rl import RLTree
 from rl.logger import TensorboardLogger
 from pybts import Node
-from bts_home_rl import HomeRLNode
+from bts_rl import RLNode
 
 
 class BTSimulator:
@@ -12,7 +12,8 @@ class BTSimulator:
                  title: str,
                  env: FireEnvironment,
                  home_tree_file: str,
-                 drone_tree_file: str,
+                 explore_drone_tree_file: str,
+                 extinguish_drone_tree_file: str,
                  render: bool = False):
         self.title = title
         self.env = env
@@ -27,8 +28,12 @@ class BTSimulator:
         for platform in self.env.platforms:
             if isinstance(platform, Home):
                 root = FIRE_BT_BUILDER.build_from_file(home_tree_file)
+            elif platform.role == DroneRole.Explore:
+                root = FIRE_BT_BUILDER.build_from_file(explore_drone_tree_file)
+            elif platform.role == DroneRole.Extinguish:
+                root = FIRE_BT_BUILDER.build_from_file(extinguish_drone_tree_file)
             else:
-                root = FIRE_BT_BUILDER.build_from_file(drone_tree_file)
+                raise Exception('Unrecognized platform {}'.format(platform))
             self.trees.append(PlatformTree(root=root, env=env, sim=self, platform_id=platform.id))
 
         for tree in self.trees:
@@ -74,11 +79,14 @@ class BTSimulator:
         self.logger.record_and_mean_n_episodes('步数', env.time, n=avg_n)
         self.logger.record_and_mean_n_episodes('剩余/火量', env.alive_fires, n=avg_n)
         self.logger.record_and_mean_n_episodes('剩余/火量比例', env.alive_fires_ratio, n=avg_n)
+
+        self.logger.record_and_mean_n_episodes('剩余/靠近草地火量', env.alive_near_flammable_fires, n=avg_n)
+        self.logger.record_and_mean_n_episodes('剩余/靠近草地火量比例', env.alive_near_flammable_fires_ratio, n=avg_n)
+
         self.logger.record_and_mean_n_episodes('剩余/无人机', env.alive_drones_count, n=avg_n)
         self.logger.record_and_mean_n_episodes('剩余/无人机比例', env.alive_drones_ratio, n=avg_n)
         self.logger.record_and_mean_n_episodes('剩余/草地', env.alive_flammables, n=avg_n)
         self.logger.record_and_mean_n_episodes('剩余/草地比例', env.alive_flammables_ratio, n=avg_n)
-        self.logger.record_and_mean_n_episodes('剩余/无人机编队长', len(env.alive_squad_leaders), n=avg_n)
         self.logger.record_and_mean_n_episodes('消灭/火量', env.extinguish_fire_count, n=avg_n)
 
         unseen_count = np.sum(self.env.home.memory_grid == Objects.Unseen)
@@ -87,6 +95,8 @@ class BTSimulator:
         self.logger.record_and_mean_n_episodes(key='未知区域占比', value=unseen_count_ratio, n=50)
 
     def should_update(self):
+        if self.env.paused:
+            return False
         if self.render:
             return time.time() - self.env.last_update_time > 0.01
         else:
@@ -105,10 +115,11 @@ class BTSimulator:
 
         for tree in self.trees:
             tree.context['train'] = train
-
-        boards = [pybts.Board(tree=t, log_dir=self.logs_dir) for t in self.trees[:2]]
-        for board in boards:
-            board.clear()
+        boards = []
+        if track:
+            boards = [pybts.Board(tree=t, log_dir=self.logs_dir) for t in self.trees[:]]
+            for board in boards:
+                board.clear()
         for episode in range(episodes):
             self.reset()
             while (not env.done) and running:
@@ -120,9 +131,9 @@ class BTSimulator:
                         if 'reward' in tree.context:
                             tree.context['reward']['default'] += reward
 
-                if track > 0 and env.time % track == 0:
-                    for board in boards:
-                        board.track()
+                    if track > 0 and env.time % track == 0:
+                        for board in boards:
+                            board.track()
                 if self.render and self.should_render():
                     for event in pygame.event.get():
                         if event.type == pygame.QUIT:
@@ -142,7 +153,17 @@ class BTSimulator:
 class PlatformTree(RLTree):
     def __init__(self, root: Node, env: FireEnvironment, sim: BTSimulator, platform_id: int):
         platform = env.platforms[platform_id]
-        super().__init__(root, name=f'{platform.__class__.__name__}-{platform_id}')
+        name = ''
+        if isinstance(platform, Home):
+            name = 'home'
+        elif isinstance(platform, Drone):
+            if platform.role == DroneRole.Explore:
+                name = f'explore-{platform_id}'
+            else:
+                name = f'extinguish-{platform_id}'
+        else:
+            raise ValueError(f'Platform类型错误')
+        super().__init__(root, name=name)
         self.context.update({
             'platform_id': platform_id,
             'env'        : env,
@@ -177,5 +198,5 @@ class PlatformTree(RLTree):
 
     def terminate(self):
         for node in self.root.iterate():
-            if isinstance(node, HomeRLNode):
+            if isinstance(node, RLNode):
                 node.take_action()

@@ -87,14 +87,28 @@ def manhattan_distance(pos1, pos2):
     return np.abs(pos1[0] - pos2[0]) + np.abs(pos1[1] - pos2[1])
 
 
-def spread_init(grid, obj: int, count: int, area_size: int | tuple[int, int] = 7):
+def grid_area_extract(grid, center: tuple[int, int], offset: int):
+    lt_x = max(int(center[0] - offset), 0)
+    lt_y = max(int(center[1] - offset), 0)
+    rt_x = min(int(center[0] + offset), grid.shape[0])
+    rt_y = min(int(center[1] + offset), grid.shape[1])
+
+    return grid[lt_x:rt_x, lt_y:rt_y]
+
+
+def spread_init(grid, obj: int, count: int, area_size: int | tuple[int, int] = 7, at_obj: int | None = 0,
+                at_area_offset: int | None = None):
     """生长区域扩散"""
     directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # 上，下，左，右
     size = grid.shape[0]
     for _ in range(count):
         for attempt in range(100):
             x, y = np.random.randint(7, size, 2)
-            if grid[x, y] == 0:
+            if grid[x, y] == at_obj:
+                if at_area_offset is not None and np.any(
+                        grid_area_extract(grid=grid, center=(x, y), offset=at_area_offset) != at_obj):
+                    continue
+
                 grid[x, y] = obj
                 current_size = 1
                 if isinstance(area_size, int):
@@ -156,6 +170,8 @@ def is_in_rect(pos: tuple[int, int], rect: tuple[tuple[int, int], tuple[int, int
     :param rect: lt_pos, rb_pos
     :return:
     """
+    if rect is None:
+        return False
     lt_pos, rb_pos = rect
     return lt_pos[0] <= pos[0] < rb_pos[0] and lt_pos[1] <= pos[1] < rb_pos[1]
 

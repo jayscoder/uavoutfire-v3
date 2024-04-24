@@ -1,0 +1,23 @@
+<Root>
+    <HomeUpdateMemoryGrid/>
+    <HomeUpdateUnreachableGrid/>
+
+    <Sequence>
+        <HomeHasDroneNeedRecharge/>
+        <HomeRechargeDrone/>
+    </Sequence>
+
+    <HomeAssignUnseenExplorationTasks/>
+    <HomeAssignFireExplorationTasks/>
+
+    <!--    <Throttle durtaion="10" time="time">-->
+    <!--        <CondBranch>-->
+    <!--            <HomeHasUnseenArea/>-->
+    <!--            <HomeClearUnseenExplorationTasks/>-->
+    <!--        </CondBranch>-->
+    <!--        <CondBranch>-->
+    <!--            <HomeHasFireArea/>-->
+    <!--            <HomeClearFireExplorationTasks/>-->
+    <!--        </CondBranch>-->
+    <!--    </Throttle>-->
+</Root>

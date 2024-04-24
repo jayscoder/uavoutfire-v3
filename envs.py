@@ -22,6 +22,10 @@ from typing import Type, Optional
 import time
 
 
+def now_time():
+    return time.time()
+
+
 # TODO: 无人机不能在一个格子里，会碰撞
 # TODO: 记忆矩阵添加过期时间
 
@@ -42,6 +46,7 @@ class Platform:
         self.memory_grid_set_time = np.full(shape=self.env.grid.shape, fill_value=0)  # 每个记忆矩阵更新的时间
         self.unreachable_grid = np.zeros_like(self.env.grid)  # 1为不可到达点
         self.move_to_area_task: Optional[tuple[tuple[int, int], tuple[int, int]]] = None
+        self.role: int = 0  # 平台角色
 
     @property
     def pos(self):
@@ -58,7 +63,7 @@ class Platform:
 
     def put_action(self, action):
         self.waiting_actions.append(action)
-        assert len(self.waiting_actions) <= 1, f"Action {action} 一个tick只能提交一次"
+        # assert len(self.waiting_actions) <= 1, f"Action {action} 一个tick只能提交一次"
 
     def add_child(self, child):
         self.children.append(child)
@@ -79,6 +84,16 @@ class Platform:
     def send_message_to_all_drone(self, message: BaseMessage):
         for drone in self.env.drones:
             if drone.is_alive and message.sender_id != drone.id:
+                self.send_message(message=message, to_platform=drone)
+
+    def send_message_to_all_explore_drone(self, message: BaseMessage):
+        for drone in self.env.drones:
+            if drone.is_alive and message.sender_id != drone.id and drone.role == DroneRole.Explore:
+                self.send_message(message=message, to_platform=drone)
+
+    def send_message_to_all_extinguish_drone(self, message: BaseMessage):
+        for drone in self.env.drones:
+            if drone.is_alive and message.sender_id != drone.id and drone.role == DroneRole.Extinguish:
                 self.send_message(message=message, to_platform=drone)
 
     def send_message(self, message: BaseMessage, to_platform: Platform | int) -> None:
@@ -121,24 +136,6 @@ class Platform:
     def alive_children_count(self) -> int:
         return len(self.alive_children)
 
-    def find_nearest_reachable_obj_pos(self, obj: int, in_task_area: bool = True) -> tuple[int, int]:
-        # 查找最近的某个点
-        nearest_pos = None
-        min_distance = float('inf')
-        left_top = (0, 0)
-        right_bottom = (self.env.size, self.env.size)
-        if in_task_area and self.move_to_area_task is not None:
-            left_top, right_bottom = self.move_to_area_task
-
-        for x in range(left_top[0], right_bottom[0]):
-            for y in range(left_top[1], right_bottom[1]):
-                if self.memory_grid[x][y] == obj and self.unreachable_grid[x][y] != 1:
-                    distance = manhattan_distance((x, y), self.pos)
-                    if distance < min_distance:
-                        min_distance = distance
-                        nearest_pos = (x, y)
-        return nearest_pos
-
 
 class Home(Platform):
     def __init__(self, x, y, id: int, env: FireEnvironment):
@@ -162,26 +159,43 @@ class Home(Platform):
 
 
 class Drone(Platform):
-    def __init__(self, x, y, id: int, env: FireEnvironment, view_range=1):
+    def __init__(self, x, y, id: int, role: int, env: FireEnvironment):
         super().__init__(x, y, id=id, env=env)
-        self.view_range = view_range  # 视野范围
-        self.max_battery = 1000  # 最大电量
-        self.battery = 1000  # 当前电量
-        self.max_fire_extinguisher = 10  # 最大灭火剂容量
-        self.fire_extinguisher = 10  # 当前灭火剂量
-        self.is_alive = True  # 无人机是否存活
-        self.extinguish_fire_count = 0  # 扑灭火的数量
-        self.cost_extinguisher = 0  # 消耗灭火剂的数量
-        self.cost_battery = 0  # 消耗电量
-        self.direction = Directions.Right  # 当前正在移动的方向
-        self.move_grid = np.zeros_like(env.grid)  # 每个位置移动次数统计
+        self.role = role
 
-    def follow_leader(self, leader):
-        # 简单的跟随逻辑，尝试移动到Leader的位置
-        if self.x != leader.x or self.y != leader.y:
-            dx = np.sign(leader.x - self.x)
-            dy = np.sign(leader.y - self.y)
-            self.move(dx, dy)
+        if role == DroneRole.Extinguish:
+            # 灭火无人机的主要任务是有效地扑灭火源，因此需要更多的灭火剂和足够的电量来支持持续的操作，
+            # 但其视野范围可以相对较小，因为它通常会在探索无人机发现的火源区域操作。
+            # 视野范围: 1 - 2（灭火时需要的精准操作不需要太广的视野）
+            # 最大电量: 1200（确保有足够的电量支持持续操作）
+            # 灭火剂容量: 20（增加灭火剂容量以扑灭更多的火源）
+            # 消耗电量: 设为每次移动或操作消耗5单位电量（因操作较多，消耗较快）
+            # 消耗灭火剂: 每次灭火操作消耗2单位灭火剂（确保可以多次执行灭火任务）
+            self.view_range = 1  # 视野范围
+            self.max_battery = 3000  # 最大电量
+            self.battery = self.max_battery  # 当前电量
+            self.cost_battery = 3  # 每次移动消耗电量3
+            self.max_fire_extinguisher = 10  # 最大灭火剂容量
+            self.fire_extinguisher = self.max_fire_extinguisher  # 当前灭火剂量
+            self.cost_extinguisher = 1  # 每次灭火操作消耗1单位灭火剂
+        else:
+            # 探索无人机的主要任务是广泛地侦查和映射区域，识别火源和其他障碍物。
+            # 视野范围: 3-4（增加视野范围以便覆盖更大的区域进行探索）
+            # 最大电量: 1000（足够支持长时间操作）
+            # 消耗电量: 每次移动或操作消耗1单位电量（考虑到主要任务是移动探索，消耗较少）
+            # 无需携带灭火剂（探索无人机不参与灭火）
+            self.view_range = 4  # 视野范围
+            self.max_battery = 1500  # 最大电量
+            self.battery = self.max_battery  # 当前电量
+            self.cost_battery = 1  # 每次移动消耗电量1
+            self.max_fire_extinguisher = 0  # 最大灭火剂容量
+            self.fire_extinguisher = self.max_fire_extinguisher  # 当前灭火剂量
+            self.cost_extinguisher = 1  # 每次灭火操作消耗1单位灭火剂
+
+        self.is_alive = True  # 无人机是否存活
+        self.extinguished_fire_count = 0  # 扑灭火的数量
+        self.direction = Directions.Right  # 当前正在移动的方向
+        self.move_count_grid = np.zeros_like(env.grid)  # 每个位置移动次数统计
 
     def move(self, dx, dy):
         if not self.is_alive:
@@ -203,17 +217,18 @@ class Drone(Platform):
         new_y = max(0, min(self.env.size - 1, self.y + dy))
         if self.env.grid[new_x, new_y] == Objects.Obstacle:
             self.is_alive = False  # 碰撞到障碍物，无人机死亡
+            print('无人机碰撞到障碍物死亡')
             # print(f"Drone {self.id} crashed into an obstacle and is now disabled.")
         else:
-            self.battery -= abs(dx) + abs(dy)
-            self.cost_battery += abs(dx) + abs(dy)
+            self.battery -= (abs(dx) + abs(dy)) * self.cost_battery
             self.x = new_x
             self.y = new_y
             if self.battery <= 0:
                 self.battery = 0
+                print('无人机电量耗尽死亡')
                 self.is_alive = False
                 # print(f"Drone {self.id} has run out of battery.")
-        self.move_grid[new_x, new_y] += 1
+        self.move_count_grid[new_x, new_y] += 1
 
     def extinguish_fire(self):
         if self.fire_extinguisher <= 0:
@@ -221,10 +236,8 @@ class Drone(Platform):
         # 尝试灭火
         if self.env.grid[self.x, self.y] == Objects.Fire:
             self.env.grid[self.x, self.y] = 0  # 灭火后将网格值设置为0
-            self.fire_extinguisher -= 1  # 灭火剂数量减少1点
-            self.extinguish_fire_count += 1
-            self.cost_extinguisher += 1
-            # print(f'灭火 剩余灭火剂量{self.fire_extinguisher}')
+            self.fire_extinguisher -= self.cost_extinguisher  # 灭火剂数量减少1点
+            self.extinguished_fire_count += 1
 
     def visible_area(self) -> tuple[tuple[int, int], tuple[int, int]]:
         # 计算并返回无人机的可视区域，左上角的点和右下角的点
@@ -234,9 +247,58 @@ class Drone(Platform):
         y_max = min(self.env.size, self.y + self.view_range + 1)
         return (x_min, y_min), (x_max, y_max)
 
+    def is_battery_bingo(self, battery: int | None = None, pos: (int, int) = None) -> bool:
+        if battery is None:
+            battery = self.battery
+        if pos is None:
+            pos = self.pos
+        return battery < manhattan_distance(self.env.home.pos, pos) * self.cost_battery * 1.2
+
+    def predict_can_move_to_target(self, target: tuple[int, int]) -> bool:
+        """预测一下能否移动到目标点"""
+        dis = manhattan_distance(self.pos, target)
+        battery = self.battery - dis * self.cost_battery  # 移动到目标点后预计消耗电量
+        return not self.is_battery_bingo(battery=battery, pos=target)
+
+    def find_nearest_reachable_obj_pos(self, obj: int | list[int], in_task_area: bool = True,
+                                       near_obj: int | None = None) -> tuple[
+        int, int]:
+        # 查找最近的某个点
+        nearest_pos = None
+        min_distance = float('inf')
+        left_top = (0, 0)
+        right_bottom = (self.env.size, self.env.size)
+        if in_task_area and self.move_to_area_task is not None:
+            left_top, right_bottom = self.move_to_area_task
+        if isinstance(obj, int):
+            obj = [obj]
+
+        for x in range(left_top[0], right_bottom[0]):
+            for y in range(left_top[1], right_bottom[1]):
+                if self.memory_grid[x][y] in obj and self.unreachable_grid[x][y] != 1:
+                    if near_obj is not None:
+                        if not np.any(
+                                grid_area_extract(grid=self.memory_grid, center=(x, y), offset=1) == near_obj):
+                            continue
+
+                    distance = manhattan_distance((x, y), self.pos)
+                    if distance < min_distance and self.predict_can_move_to_target(target=(x, y)):
+                        min_distance = distance
+                        nearest_pos = (x, y)
+        return nearest_pos
+
     @property
     def need_go_home(self) -> bool:
-        return self.battery < manhattan_distance(self.env.home.pos, self.pos) * 1.5 or self.fire_extinguisher == 0
+        """
+        判断当前无人机是否需要回基地
+        :return:
+        """
+        if self.is_battery_bingo():
+            # 需要留够回基地的电量
+            return True
+        if self.role == DroneRole.Extinguish and self.fire_extinguisher == 0:
+            return True
+        return False
 
     def step(self, action):
         if action == DroneActions.MOVE_UP:
@@ -304,36 +366,42 @@ class Drone(Platform):
 class FireEnvironment:
     def __init__(self,
                  size=50,
-                 initial_fires=12,
-                 spread_chance=0.001,
-                 num_squads=2,
-                 drones_per_squad=3,
+                 init_empty_fires=7,  # 空地上的火扩散的速度会比较慢
+                 init_flammable_fires=3,  # 草地上的火扩散速度会比较快
+                 num_explore_drones=2,
+                 num_extinguish_drones=4,
                  num_obstacles=30,
-                 num_flammables=100,
+                 num_flammables=10,
                  max_step: int = 3000
                  ):
         self.size = size
-        self.num_fires = initial_fires
-        self.spread_chance = spread_chance
-        self.num_squads = num_squads
-        self.drones_per_squad = drones_per_squad
+        self.init_empty_fires = init_empty_fires
+        self.init_flammable_fires = init_flammable_fires
+
+        self.empty_fire_spread_chance = 0
+        self.flammable_fire_spread_chance = 0.012
         self.num_obstacles = num_obstacles
         self.num_flammables = num_flammables
+        self.num_explore_drones = num_explore_drones
+        self.num_extinguish_drones = num_extinguish_drones
+
         self.max_duration = max_step
         self.terminated = False
         self.truncated = False
         self.time = 0
         self.grid = np.zeros((size, size))
+        self.fire_weight = np.zeros((size, size))  # 火量
         self.render_grid: Union[np.array, None] = None
         self.platforms = []
         self.episode = 0
 
-        self.area_size_per_flammables = 5
-        self.area_size_per_obstacles = 5
+        self.area_size_per_flammables = 50
+        self.area_size_per_obstacles = 7
 
         self.accum_reward = 0
         self.last_render_time = 0
         self.last_update_time = 0
+        self.paused = False  # 是否暂停
         self.reset()
 
     def reset(self):
@@ -366,6 +434,22 @@ class FireEnvironment:
     def drones(self) -> list[Drone]:
         return self.platforms[1:]
 
+    @property
+    def explore_drones(self) -> list[Drone]:
+        return list(filter(lambda drone: drone.role == DroneRole.Explore, self.drones))
+
+    @property
+    def alive_explore_drones(self) -> list[Drone]:
+        return list(filter(lambda drone: drone.role == DroneRole.Explore and drone.is_alive, self.drones))
+
+    @property
+    def alive_extinguish_drones(self) -> list[Drone]:
+        return list(filter(lambda drone: drone.role == DroneRole.Extinguish and drone.is_alive, self.drones))
+
+    @property
+    def extinguish_drones(self) -> list[Drone]:
+        return list(filter(lambda drone: drone.role == DroneRole.Extinguish, self.drones))
+
     def init_objects(self):
         self.platforms.clear()
         self.platforms.append(Home(0, 0, id=0, env=self))
@@ -377,17 +461,25 @@ class FireEnvironment:
                     obj=Objects.Flammable,
                     count=self.num_flammables,
                     area_size=self.area_size_per_flammables)
-        spread_init(self.grid, obj=Objects.Fire, count=self.num_fires, area_size=1)
-        for squad_id in range(self.num_squads):
+
+        spread_init(self.grid, obj=Objects.Fire, count=self.init_flammable_fires, area_size=1, at_obj=Objects.Flammable)
+        # 添加一下距离草地的距离
+        spread_init(self.grid, obj=Objects.Fire, count=self.init_empty_fires, area_size=1, at_obj=Objects.Empty,
+                    at_area_offset=2)
+
+        for _ in range(self.num_explore_drones):
             # 在基地位置初始化无人机
             x, y = self.home.x, self.home.y
-            leader = Drone(x, y, id=len(self.platforms), env=self)
-            self.platforms.append(leader)
-            for _ in range(self.drones_per_squad - 1):
-                drone = Drone(x, y, id=len(self.platforms), env=self)
-                leader.add_child(drone)
-                self.platforms.append(drone)
-            self.home.add_child(leader)
+            drone = Drone(x, y, id=len(self.platforms), env=self, role=DroneRole.Explore)
+            self.platforms.append(drone)
+            self.home.add_child(drone)
+
+        for _ in range(self.num_extinguish_drones):
+            # 在基地位置初始化无人机
+            x, y = self.home.x, self.home.y
+            drone = Drone(x, y, id=len(self.platforms), env=self, role=DroneRole.Extinguish)
+            self.platforms.append(drone)
+            self.home.add_child(drone)
 
     def is_far_from_fire(self, x, y, min_distance):
         # Check the area around (x, y) within the min_distance for any fire
@@ -412,11 +504,11 @@ class FireEnvironment:
                         if 0 <= ni < self.size and 0 <= nj < self.size and self.grid[ni, nj] in [Objects.Empty,
                                                                                                  Objects.Flammable]:
                             if self.grid[ni, nj] == Objects.Flammable:
-                                if np.random.rand() < self.spread_chance * 10:
-                                    # 碰到易燃物品后扩散速度加快10倍
+                                if np.random.rand() < self.flammable_fire_spread_chance:
+                                    # 碰到易燃物品后扩散速度加快20倍
                                     new_grid[ni, nj] = Objects.Fire
-                            elif np.random.rand() < self.spread_chance:
-                                new_grid[ni, nj] = 1
+                            elif np.random.rand() < self.empty_fire_spread_chance:
+                                new_grid[ni, nj] = Objects.Fire
         self.grid = new_grid
 
     @property
@@ -424,18 +516,21 @@ class FireEnvironment:
         return self.terminated or self.truncated
 
     @property
-    def alive_squad_leaders(self) -> list[Drone]:
-        # 存活下来的编队leader
-        return [q for q in self.drones if q.is_alive and q.is_leader]
-
-    @property
     def alive_drones_count(self) -> int:
         return sum(q.is_alive for q in self.drones)
 
     @property
+    def alive_explore_drones_count(self) -> int:
+        return sum(q.is_alive and q.role == DroneRole.Explore for q in self.drones)
+
+    @property
+    def alive_extinguish_drones_count(self) -> int:
+        return sum(q.is_alive and q.role == DroneRole.Extinguish for q in self.drones)
+
+    @property
     def extinguish_fire_count(self) -> int:
         # 无人机扑灭火的数量
-        return sum([d.extinguish_fire_count for d in self.drones])
+        return sum([d.extinguished_fire_count for d in self.drones])
 
     @property
     def alive_fires(self) -> int:
@@ -451,6 +546,32 @@ class FireEnvironment:
     def alive_fires_ratio(self) -> float:
         # 剩余火量比例
         return self.alive_fires / (self.size * self.size)
+
+    @property
+    def alive_near_flammable_fires(self) -> int:
+        # 剩余靠近草地的火的数量
+        fire_positions = np.argwhere(self.grid == Objects.Fire)
+        near_flammable_count = 0
+
+        for fire_x, fire_y in fire_positions:
+            # 检查火源的上下左右邻居
+            neighbors = [
+                (fire_x - 1, fire_y), (fire_x + 1, fire_y),
+                (fire_x, fire_y - 1), (fire_x, fire_y + 1)
+            ]
+            # 确保邻居坐标在网格范围内并检查是否为草地
+            for nx, ny in neighbors:
+                if 0 <= nx < self.grid.shape[0] and 0 <= ny < self.grid.shape[1]:
+                    if self.grid[nx, ny] == Objects.Flammable:
+                        near_flammable_count += 1
+                        break  # 如果找到至少一个草地邻居，就停止检查其他邻居
+
+        return near_flammable_count
+
+    @property
+    def alive_near_flammable_fires_ratio(self) -> float:
+        # 剩余草地比例
+        return self.alive_near_flammable_fires / (self.size * self.size)
 
     @property
     def alive_flammables_ratio(self) -> float:
@@ -475,7 +596,7 @@ class FireEnvironment:
 
     def update(self):
         """Advance the simulation by one step."""
-        self.last_update_time = time.time()
+        self.last_update_time = now_time()
 
         self.time += 1
         self.spread_fire()
@@ -489,7 +610,8 @@ class FireEnvironment:
 
         # Check if all drones are disabled
 
-        if self.alive_drones_count == 0:
+        if self.alive_drones_count == 0 or self.alive_extinguish_drones_count == 0 or self.alive_fires == 0:
+            # 灭火无人机数量为0也代表结束了
             self.terminated = True
             # print("All drones are disabled. Simulation ends.")
 
@@ -499,18 +621,12 @@ class FireEnvironment:
             # print(f"All fires have been extinguished. Simulation ends. rewards={rewards} done={self.done}")
 
         if self.terminated or self.truncated:
-            time_ratio = math.exp(-self.time / self.max_duration)
+            time_ratio = self.max_duration / self.time
             # 剩余无人机越多、剩余火越少、剩余草地越多，则奖励越多，同时考虑时间系数，用时越短，则奖励越高
-            # a, b, c = 1, 5, 2
-            # reward = time_ratio * (
-            #         self.alive_drones_ratio * a + (1 - self.alive_fires_ratio) * b + self.alive_flammables_ratio * c)
-
-            reward += (1000 - self.alive_fires * 10) * time_ratio  # 扑灭火势奖励
-            # if self.alive_fires < 10:
-            #     # 剩余火量比较少
-            #
-            # else:
-            #     reward -= self.alive_fires * 5  # 每剩余1点火，就扣5点奖励
+            a, b, c = 0.1, -20, -1
+            reward += (self.alive_flammables_ratio * a
+                       + self.alive_near_flammable_fires_ratio * b
+                       + self.alive_fires_ratio * c) * time_ratio * 1000
 
         # Simulation continues
         self.accum_reward += reward
@@ -543,7 +659,6 @@ class FireEnvironment:
         pygame.init()
         self.screen = pygame.display.set_mode((self.size * 10, self.size * 10))
         pygame.display.set_caption("Fire Simulation")
-        self.clock = pygame.time.Clock()
 
     def pygame_render(self):
         self.last_render_time = time.time()
@@ -572,14 +687,36 @@ class FireEnvironment:
 
         for drone in self.drones:
             member_pos = (drone.x * 10, drone.y * 10)
-            # if drone.is_leader:
-            #     screen.blit(PYGAME_IMAGES['LEADER'], member_pos)
-            # else:
-            screen.blit(PYGAME_IMAGES['LEADER'], member_pos)
+            if drone.role == DroneRole.Explore:
+                img = PYGAME_IMAGES['UAV_EXPLORE']
+                rotate = 0
+                if drone.direction == Directions.Right:
+                    rotate = 90
+                elif drone.direction == Directions.Down:
+                    rotate = 180
+                elif drone.direction == Directions.Left:
+                    rotate = 270
+                img = pygame.transform.rotate(img, rotate)
+            else:
+                img = PYGAME_IMAGES['UAV_EXTINGUISH']
+            img_rect = img.get_rect()
+            img_rect.topleft = member_pos
+            screen.blit(img, img_rect)
+
+            # 创建字体对象
+            font = pygame.font.Font(None, 16)  # 使用默认字体，大小为36
+
+            # 渲染文本到 Surface 对象
+            text_surface = font.render(f'{drone.id}', True, (0, 0, 0))
+
+            # 获取文本区域的矩形
+            text_rect = text_surface.get_rect()
+            text_rect.center = [img_rect.center[0], img_rect.bottom + 10]
+            screen.blit(text_surface, text_rect)
+
             # screen.blit(PYGAME_IMAGES['MEMBER'], member_pos)
             if not drone.is_alive:
                 screen.blit(PYGAME_IMAGES['EXPLOSION'], member_pos)
-
             if drone.move_to_area_task is not None:
                 left_top, right_bottom = drone.move_to_area_task
                 size_w = right_bottom[0] - left_top[0]
@@ -599,6 +736,19 @@ class FireEnvironment:
             #     dx, dy = arrow_length, 0
             # arrow_end = (member_pos[0] + 5 + dx, member_pos[1] + 5 + dy)
             # pygame.draw.line(screen, arrow_color, (member_pos[0] + 5, member_pos[1] + 5), arrow_end, 2)
+
+        play_pause_img = PYGAME_IMAGES['PLAY'] if self.paused else PYGAME_IMAGES['PAUSE']
+        play_pause_img_rect = play_pause_img.get_rect()
+        play_pause_img_rect.right = self.size * 10 - 10
+        play_pause_img_rect.top = 10
+
+        event = pygame.event.poll()
+        if event is not None:
+            # 检测鼠标点击
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if play_pause_img_rect.collidepoint(event.pos):
+                    self.paused = not self.paused  # 切换暂停状态
+        screen.blit(play_pause_img, play_pause_img_rect)
 
         pygame.display.flip()  # Update the full display Surface to the screen
 

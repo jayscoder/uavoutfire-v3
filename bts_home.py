@@ -26,10 +26,27 @@ class HomeUpdateMemoryGrid(BaseHomeNode):
 
         # 计算新火点数量
         new_find_fire_count = np.sum((old_memory_grid != Objects.Fire) & (self.memory_grid == Objects.Fire))
-        new_extinguish_fire_count = np.sum((old_memory_grid == Objects.Fire) & (self.memory_grid != Objects.Fire))
+        extinguished_fire_mask = (old_memory_grid == Objects.Fire) & (self.memory_grid != Objects.Fire)
+
+        new_extinguish_fire_count = np.sum(extinguished_fire_mask)
         new_explore_unseen_count = np.sum((old_memory_grid == Objects.Unseen) & (self.memory_grid != Objects.Unseen))
+
+        # 检查新灭掉的火周围是否有可燃物
+        new_extinguish_fire_nearby_flammable_count = 0
+        for x in range(self.memory_grid.shape[0]):
+            for y in range(self.memory_grid.shape[0]):
+                if extinguished_fire_mask[x, y]:  # 如果这是新灭掉的火
+                    # 检查周围的格子
+                    neighbors = [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]  # 四个方向的邻居
+                    for nx, ny in neighbors:
+                        if 0 <= nx < self.memory_grid.shape[0] and 0 <= ny < self.memory_grid.shape[1]:  # 确保不越界
+                            if self.memory_grid[nx, ny] == Objects.Flammable:
+                                new_extinguish_fire_nearby_flammable_count += 1
+                                break  # 仅统计每个灭火点附近是否有可燃物，有即可停止检查
+
         self.context['new_find_fire_count'] = new_find_fire_count
         self.context['new_extinguish_fire_count'] = new_extinguish_fire_count
+        self.context['new_extinguish_fire_nearby_flammable_count'] = new_extinguish_fire_nearby_flammable_count
         self.context['new_explore_unseen_count'] = new_explore_unseen_count
         return Status.SUCCESS
 
@@ -100,8 +117,8 @@ class HomeHasFireArea(BaseHomeNode):
 
 
 @FIRE_BT_BUILDER.register_node
-class HomeAssignUnseenExplorationAreas(BaseHomeNode):
-    """基地分配探索区域给各无人机。"""
+class HomeAssignUnseenExplorationTasks(BaseHomeNode):
+    """基地分配探索区域给各探索无人机。"""
 
     @property
     def repeat_count(self):
@@ -119,14 +136,14 @@ class HomeAssignUnseenExplorationAreas(BaseHomeNode):
                 return
 
             # 尝试均等分配未探测区域
-            num_drones = len(self.env.drones)
+            num_drones = len(self.env.alive_explore_drones)
             # 每个无人机分配至少一个探测区域，如果区域数小于无人机数，一些无人机将共享同一探测区域
             num_assigned_areas = min(num_drones, len(target_indices))
             area_per_drone = max(1, len(target_indices) // num_drones)
             extra = len(target_indices) % num_drones
 
             start_idx = 0
-            for i, drone in enumerate(self.env.drones):
+            for i, drone in enumerate(self.env.alive_explore_drones):
                 assign_i = i % num_assigned_areas
                 # 为每个无人机计算分配区域的大小
                 end_idx = start_idx + area_per_drone + (1 if assign_i < extra else 0)
@@ -148,7 +165,7 @@ class HomeAssignUnseenExplorationAreas(BaseHomeNode):
 
 
 @FIRE_BT_BUILDER.register_node
-class HomeAssignFireExplorationAreas(BaseHomeNode):
+class HomeAssignFireExplorationTasks(BaseHomeNode):
     """基地分配火场探索区域给各无人机。"""
 
     @property
@@ -166,14 +183,14 @@ class HomeAssignFireExplorationAreas(BaseHomeNode):
                 yield Status.FAILURE  # 如果没有未探测区域，则返回失败状态
                 return
             # 尝试均等分配未探测区域
-            num_drones = len(self.env.drones)
+            num_drones = len(self.env.alive_extinguish_drones)
             # 每个无人机分配至少一个探测区域，如果区域数小于无人机数，一些无人机将共享同一探测区域
             num_assigned_areas = min(num_drones, len(target_indices))
             area_per_drone = max(1, len(target_indices) // num_drones)
             extra = len(target_indices) % num_drones
 
             start_idx = 0
-            for i, drone in enumerate(self.env.drones):
+            for i, drone in enumerate(self.env.alive_extinguish_drones):
                 assign_i = i % num_assigned_areas
                 # 为每个无人机计算分配区域的大小
                 end_idx = start_idx + area_per_drone + (1 if assign_i < extra else 0)
@@ -185,12 +202,34 @@ class HomeAssignFireExplorationAreas(BaseHomeNode):
                 # 计算区域的边界
                 x_min, x_max = np.min(drone_area_indices[:, 0]), np.max(drone_area_indices[:, 0])
                 y_min, y_max = np.min(drone_area_indices[:, 1]), np.max(drone_area_indices[:, 1])
+
+                x_min = max(0, x_min - 2)
+                x_max = min(self.env.size, x_max + 2)
+                y_min = max(0, y_min - 2)
+                y_max = min(self.env.size, y_max + 2)
+
                 # 创建并发送消息
-                area_message = MoveToAreaMessage(rect=((x_min, y_min), (x_max + 1, y_max + 1)))
+                area_message = MoveToAreaMessage(rect=((x_min, y_min), (x_max, y_max)))
                 self.platform.send_message(message=area_message, to_platform=drone)
                 start_idx = end_idx
 
             yield Status.RUNNING
+        yield Status.SUCCESS
+
+
+@FIRE_BT_BUILDER.register_node
+class HomeClearFireExplorationTasks(BaseHomeNode):
+
+    def updater(self) -> typing.Iterator[Status]:
+        self.platform.send_message_to_all_extinguish_drone(message=MoveToAreaMessage(rect=None))
+        yield Status.SUCCESS
+
+
+@FIRE_BT_BUILDER.register_node
+class HomeClearUnseenExplorationTasks(BaseHomeNode):
+
+    def updater(self) -> typing.Iterator[Status]:
+        self.platform.send_message_to_all_explore_drone(message=MoveToAreaMessage(rect=None))
         yield Status.SUCCESS
 
 

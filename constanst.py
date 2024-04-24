@@ -8,6 +8,11 @@ class HomeActions(IntEnum):
     RECHARGE = 1  # 给无人机恢复状态（充电、补充灭火剂）
 
 
+class DroneRole(IntEnum):
+    Explore = 0  # 探索无人机
+    Extinguish = 1  # 灭火无人机
+
+
 class DroneActions(IntEnum):
     """
     无人机执行动作 'move_up', 'move_down', 'move_left', 'move_right', 'extinguish'
@@ -62,10 +67,14 @@ class DroneActions(IntEnum):
 DRONE_ACTIONS_SPACE = gym.spaces.Discrete(len(DroneActions))
 
 PYGAME_IMAGES = {
-    'BASE'     : pygame.image.load('imgs/home.svg'),
-    'LEADER'   : pygame.image.load('imgs/uav_leader.svg'),
-    'MEMBER'   : pygame.image.load('imgs/uav_member.svg'),
-    'EXPLOSION': pygame.image.load('imgs/explosion.svg')
+    'BASE'          : pygame.image.load('imgs/home.svg'),
+    'LEADER'        : pygame.image.load('imgs/uav_leader.svg'),
+    'MEMBER'        : pygame.image.load('imgs/uav_member.svg'),
+    'UAV_EXPLORE'   : pygame.image.load('imgs/uav_explore.svg'),
+    'UAV_EXTINGUISH': pygame.image.load('imgs/uav_extinguish.svg'),
+    'EXPLOSION'     : pygame.image.load('imgs/explosion.svg'),
+    'PAUSE'         : pygame.image.load('imgs/pause.svg'),
+    'PLAY'          : pygame.image.load('imgs/play.svg')
 }
 
 DIRECTION_VECS = [(0, -1), (1, 0), (0, 1), (-1, 0)]
