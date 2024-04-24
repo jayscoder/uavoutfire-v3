@@ -1,0 +1,7 @@
+<Root>
+    <HomeUpdateMemoryGrid/>
+    <Sequence>
+        <HomeHasDroneNeedRecharge/>
+        <HomeRechargeDrone/>
+    </Sequence>
+</Root>

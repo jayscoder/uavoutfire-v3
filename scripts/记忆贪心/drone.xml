@@ -1,0 +1,17 @@
+<Root>
+    <DroneSendViewUpdateToHome/>
+    <DroneUpdateMemoryGrid/>
+    <Selector>
+        <Sequence>
+            <HasFireAtLocation/>
+            <Extinguish/>
+        </Sequence>
+        <Sequence>
+            <IsObstacleInFront/>
+            <WallAround move_distance="5"/>
+        </Sequence>
+
+        <GreedyExploreUnseen/>
+        <DroneGreedyMove memory="true"/>
+    </Selector>
+</Root>

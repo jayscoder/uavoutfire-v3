@@ -1,0 +1,13 @@
+<Root>
+    <DroneSendViewUpdateToHome/>
+    <DroneUpdateMemoryGrid/>
+    <Selector>
+        <Sequence>
+            <HasFireAtLocation/>
+            <Extinguish/>
+        </Sequence>
+
+        <GreedyExploreUnseen/>
+        <DroneGreedyMove memory="true"/>
+    </Selector>
+</Root>
