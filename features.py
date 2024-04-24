@@ -10,16 +10,14 @@ import torch.nn as nn
 from stable_baselines3.sac import CnnPolicy, MlpPolicy, MultiInputPolicy
 
 
-class CNNMinigridFeaturesExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_space: gym.Space, features_dim: int = 128, normalized_image: bool = False) -> None:
+class CNNFeaturesExtractor(BaseFeaturesExtractor):
+    def __init__(self, observation_space: gym.Space, features_dim: int = 256, normalized_image: bool = False) -> None:
         super().__init__(observation_space, features_dim)
         n_input_channels = observation_space.shape[0]
         self.cnn = nn.Sequential(
-                nn.Conv2d(n_input_channels, 16, (2, 2)),
+                nn.Conv2d(n_input_channels, 8, (2, 2), padding=1),
                 nn.ReLU(),
-                nn.Conv2d(16, 32, (2, 2)),
-                # nn.ReLU(),
-                # nn.Conv2d(32, 64, (2, 2)),
+                nn.Conv2d(8, 16, (2, 2), padding=1),
                 nn.ReLU(),
                 nn.Flatten(),
         )
@@ -31,7 +29,9 @@ class CNNMinigridFeaturesExtractor(BaseFeaturesExtractor):
         self.linear = nn.Sequential(nn.Linear(in_features=n_flatten, out_features=features_dim), nn.ReLU())
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
-        return self.linear(self.cnn(observations))
+        cnn_output = self.cnn(observations)
+        print('cnn_output', cnn_output.shape)
+        return self.linear(cnn_output)
 
 
 class RLBTFeaturesExtractor(BaseFeaturesExtractor):

@@ -219,6 +219,8 @@ def build_rect_from_center(center: tuple[int, int], size: tuple[int, int], max_s
     right_y = min(right_y, max_size)
 
     return (int(left_x), int(left_y)), (int(right_x), int(right_y))
+
+
 # class RectPointCache:
 #     def __init__(self, rect: tuple[tuple[int, int], tuple[int, int]]):
 #         self.rect = rect
@@ -229,3 +231,22 @@ def build_rect_from_center(center: tuple[int, int], size: tuple[int, int], max_s
 #         right_x, right_y = self.rect[1]
 #
 #         point = random.randint(left_x, right_x), random.randint(left_y, right_y)
+
+def downsample_grid(grid, factor=5):
+    new_size = grid.shape[0] // factor
+    downsampled_grid = np.zeros((new_size, new_size), dtype=int)
+
+    for i in range(new_size):
+        for j in range(new_size):
+            subgrid = grid[i * factor:(i + 1) * factor, j * factor:(j + 1) * factor]
+            # 检查subgrid中是否有火点或草地
+            if np.any(subgrid == Objects.Fire):
+                downsampled_grid[i, j] = Objects.Fire
+            elif np.any(subgrid == Objects.Flammable):
+                downsampled_grid[i, j] = Objects.Flammable
+            elif np.any(subgrid == Objects.Unseen):
+                downsampled_grid[i, j] = Objects.Unseen
+            # 可以添加其他条件来表示不同的特征
+            else:
+                downsampled_grid[i, j] = Objects.Empty  # 如果没有特殊对象，设为Empty或其他标记
+    return downsampled_grid

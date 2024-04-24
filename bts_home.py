@@ -47,16 +47,17 @@ class HomeUpdateMemoryGrid(BaseHomeNode):
 
         # 检查新灭掉的火周围是否有可燃物
         new_extinguish_fire_nearby_flammable_count = 0
-        for x in range(self.memory_grid.shape[0]):
-            for y in range(self.memory_grid.shape[0]):
-                if extinguished_fire_mask[x, y]:  # 如果这是新灭掉的火
-                    # 检查周围的格子
-                    neighbors = [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]  # 四个方向的邻居
-                    for nx, ny in neighbors:
-                        if 0 <= nx < self.memory_grid.shape[0] and 0 <= ny < self.memory_grid.shape[1]:  # 确保不越界
-                            if self.memory_grid[nx, ny] == Objects.Flammable:
-                                new_extinguish_fire_nearby_flammable_count += 1
-                                break  # 仅统计每个灭火点附近是否有可燃物，有即可停止检查
+        if new_extinguish_fire_count > 0:
+            for x in range(self.memory_grid.shape[0]):
+                for y in range(self.memory_grid.shape[0]):
+                    if extinguished_fire_mask[x, y]:  # 如果这是新灭掉的火
+                        # 检查周围的格子
+                        neighbors = [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]  # 四个方向的邻居
+                        for nx, ny in neighbors:
+                            if 0 <= nx < self.memory_grid.shape[0] and 0 <= ny < self.memory_grid.shape[1]:  # 确保不越界
+                                if self.memory_grid[nx, ny] == Objects.Flammable:
+                                    new_extinguish_fire_nearby_flammable_count += 1
+                                    break  # 仅统计每个灭火点附近是否有可燃物，有即可停止检查
 
         self.context['new_find_fire_count'] = new_find_fire_count
         self.context['new_extinguish_fire_count'] = new_extinguish_fire_count

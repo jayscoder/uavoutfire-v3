@@ -1,4 +1,4 @@
-import os.path
+import os
 
 from envs import *
 from bts_builder import *
@@ -7,30 +7,30 @@ from utils import folder_run_id
 import bts_home
 import bts_drone
 import bts_home_rl
+from stable_baselines3 import PPO, SAC
+
+from features import CNNFeaturesExtractor
 
 
-class EnvWrapper(gym.Env):
-
-    def __init__(self, env: FireEnvironment):
-        self.env = env
-
-
-
-def main():
-    env = FireEnvironment(50)
+def run_sim(N: int, render: bool = False,
+            title: str = '', ):
     sim = BTSimulator(
-            title=title or folder,
-            env=env,
-            home_tree_file=os.path.join(folder, home_file),
-            explore_drone_tree_file=os.path.join(folder, explore_drone_file),
-            extinguish_drone_tree_file=os.path.join(folder, extinguish_drone_file),
+            title=title,
+            env=FireEnvironment(50),
+            home_tree_file='scripts/子树/Stable-基地.xml',
+            explore_drone_tree_file='scripts/子树/探索UAV.xml',
+            extinguish_drone_tree_file='scripts/子树/灭火UAV.xml',
             render=render,
-            context={ 'outdated_time': outdated_time }
+            context={ 'outdated_time': 300 }
     )
-    start_time = time.time()
-    sim.simulate(N, track=track, train=train)
-    cost_time = time.time() - start_time
+    model = PPO('CnnPolicy', env=sim, verbose=1, tensorboard_log='./logs/Stable-PPO分配', use_sde=True, policy_kwargs={
+        'normalize_images'         : False,
+        'features_extractor_class' : CNNFeaturesExtractor,
+        'features_extractor_kwargs': dict(features_dim=256),
+    }, device='cpu')
+    model.learn(total_timesteps=N, progress_bar=True)
+    model.save("models/PPO分配")
 
 
 if __name__ == '__main__':
-    run_sim(N=10000, folder='PPO分配')
+    run_sim(N=25000, render=False, title='Stable-PPO')

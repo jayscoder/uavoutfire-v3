@@ -1,0 +1,14 @@
+<Root>
+    <HomeUpdateMemoryGrid/>
+    <HomeUpdateUnreachableGrid/>
+    <Sequence>
+        <HomeHasDroneNeedRecharge/>
+        <HomeRechargeDrone/>
+    </Sequence>
+
+<!--    <Reward domain="default"-->
+<!--            reward="{{new_extinguish_fire_count * 0.01 + new_extinguish_fire_nearby_flammable_count*0.5}}"/>-->
+<!--    <HomeRLAreaReward domain="default"/>-->
+
+<!--    <Reward name="时间惩罚" domain="default" reward="-0.01"/>-->
+</Root>

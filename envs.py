@@ -7,6 +7,7 @@ import matplotlib
 import matplotlib.colors as mcolors
 import random
 
+import pybts
 from gymnasium.core import ActType, ObsType
 
 from agent import QLearningAgent
@@ -418,7 +419,7 @@ class Drone(Platform):
         self.step(action)
 
 
-class FireEnvironment:
+class FireEnvironment(gym.Env):
     def __init__(self,
                  size=50,
                  init_empty_fires=5,  # 空地上的火扩散的速度会比较慢
@@ -427,7 +428,7 @@ class FireEnvironment:
                  num_extinguish_drones=2,
                  num_obstacles=30,
                  num_flammables=10,
-                 max_step: int = 3000
+                 max_step: int = 3000,
                  ):
         self.size = size
         self.init_empty_fires = init_empty_fires
@@ -457,16 +458,28 @@ class FireEnvironment:
         self.last_render_time = 0
         self.last_update_time = 0
         self.paused = False  # 是否暂停
-        self.observation_space = gym.spaces.Box(low=0, high=10,
-                                                shape=(3, self.grid.shape[0], self.grid.shape[1]))
+
+        self.down_sample_factor = 4
+        self.observation_space = gym.spaces.Box(low=0, high=5,
+                                                shape=(2, self.size // self.down_sample_factor,
+                                                       self.size // self.down_sample_factor))
 
         self.action_space = gym.spaces.Box(low=0, high=1,
                                            shape=(self.num_explore_drones + self.num_extinguish_drones, 2))
 
+        self.trees: list[pybts.Tree] = []
         self.reset()
 
-    def reset(self):
+    def reset(
+            self,
+            *,
+            seed: int | None = None,
+            options: dict[str, Any] | None = None,
+    ) -> tuple[ObsType, dict[str, Any]]:
         """Reset the simulation to start a new episode."""
+        for tree in self.trees:
+            tree.reset()
+
         if self.time > 0:
             self.episode += 1
         self.grid.fill(0)
@@ -475,7 +488,8 @@ class FireEnvironment:
         self.init_objects()
         self.time = 0
         self.accum_reward = 0
-        return self.grid, self.gen_info()
+
+        return self.gen_obs(), self.gen_info()
 
     def gen_info(self):
         return {
@@ -657,17 +671,24 @@ class FireEnvironment:
 
     def update(self):
         """Advance the simulation by one step."""
+
+        old_grid = np.copy(self.grid)
+        old_memory_grid = np.copy(self.home.memory_grid)
+
         self.last_update_time = now_time()
 
         self.time += 1
         self.spread_fire()
         reward = 0
 
-        if self.time > self.max_duration:
-            self.truncated = True
+        for t in self.trees:
+            t.tick()
 
         for platform in self.platforms:
             platform.update()
+
+        if self.time > self.max_duration:
+            self.truncated = True
 
         # Check if all drones are disabled
         # if random.random() < 1 / 500:
@@ -696,9 +717,35 @@ class FireEnvironment:
                        + self.alive_near_flammable_fires_ratio * b
                        + self.alive_fires_ratio * c) * time_ratio * 1000
 
+        else:
+            # 计算新火点数量
+            new_find_fire_count = np.sum((old_memory_grid != Objects.Fire) & (self.home.memory_grid == Objects.Fire))
+            extinguished_fire_mask = (old_grid == Objects.Fire) & (self.grid != Objects.Fire)
+            new_extinguish_fire_count = np.sum(extinguished_fire_mask)
+            # new_explore_unseen_count = np.sum(
+            #         (old_memory_grid == Objects.Unseen) & (self.home.memory_grid != Objects.Unseen))
+
+            # 检查新灭掉的火周围是否有可燃物
+            new_extinguish_fire_nearby_flammable_count = 0
+            if new_extinguish_fire_count > 0:
+                for x in range(self.grid.shape[0]):
+                    for y in range(self.grid.shape[0]):
+                        if extinguished_fire_mask[x, y]:  # 如果这是新灭掉的火
+                            # 检查周围的格子
+                            neighbors = [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]  # 四个方向的邻居
+                            for nx, ny in neighbors:
+                                if 0 <= nx < self.grid.shape[0] and 0 <= ny < self.grid.shape[
+                                    1]:  # 确保不越界
+                                    if self.grid[nx, ny] == Objects.Flammable:
+                                        new_extinguish_fire_nearby_flammable_count += 1
+                                        break  # 仅统计每个灭火点附近是否有可燃物，有即可停止检查
+
+            reward += new_extinguish_fire_count * 0.1 + new_extinguish_fire_nearby_flammable_count * 1 + new_find_fire_count * 0.05
+
         # Simulation continues
         self.accum_reward += reward
-        return self.grid, reward, self.terminated, self.truncated, self.gen_info()
+        print('reward', reward)
+        return self.gen_obs(), reward, self.terminated, self.truncated, self.gen_info()
 
     # def matplot_render(self):
     #     # plt.clf()  # Clear the entire figure to remove previous drawings
@@ -723,13 +770,50 @@ class FireEnvironment:
     #
     #     plt.show()
 
-
-
-
     def pygame_init(self):
         pygame.init()
         self.screen = pygame.display.set_mode((self.size * 10, self.size * 10))
         pygame.display.set_caption("Fire Simulation")
+
+    def step(
+            self, action: ActType
+    ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
+        for i in range(len(action)):
+            x, y = action[i]
+            w, h = 6, 6
+            x = int(x * (self.size - 6)) + 3
+            y = int(y * (self.size - 6)) + 3
+            # x = int(x * (self.env.size - 10)) + 5
+            # y = int(y * (self.env.size - 10)) + 5
+
+            # print('HomeRLAssignFireExplorationAreas', x, y, size)
+            rects = []
+            rect = build_rect_from_center((x, y), (w, h), max_size=self.size)
+            rects.append(rect)
+            area_message = MoveToAreaMessage(rect=rect)
+            self.home.send_message(message=area_message, to_platform=self.drones[i])
+
+        return self.update()
+
+    def gen_obs(self):
+        image = downsample_grid(self.home.memory_grid, factor=self.down_sample_factor)
+        print('gen_obs', image.shape, self.observation_space)
+        # if self.obs_uav:
+        uav_id = np.zeros_like(image)
+        # uav_need_go_home = np.zeros_like(image)
+        for i, drone in enumerate(self.drones):
+            new_x = drone.x // self.down_sample_factor
+            new_y = drone.y // self.down_sample_factor
+            if new_x >= uav_id.shape[0]:
+                new_x -= 1
+            if new_y >= uav_id.shape[1]:
+                new_y -= 1
+            uav_id[new_x, new_y] = drone.role
+            # uav_need_go_home[drone.x, drone.y] = int(drone.need_go_home)
+        # outdated = (self.time - self.home.memory_grid_set_time) / 600
+        image = np.stack([image, uav_id], axis=0)
+        print(image.shape)
+        return image
 
     def pygame_render(self):
         self.last_render_time = time.time()
